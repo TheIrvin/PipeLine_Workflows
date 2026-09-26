@@ -3,15 +3,16 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from services.idea_bank.planner import validate_package
+from services.idea_bank.planner import build_package, generate_narration, save_package, validate_package
 from services.idea_bank.store import IdeaBank
-from .providers import (EspeakTTSProvider, ExistingSubtitleBackendAdapter, FacebookPublisher,
+from .providers import (EspeakTTSProvider, ExistingSubtitleBackendAdapter, FacebookPublisher, FishAudioTTSProvider,
                         InstagramPublisher, LocalSubtitleWorker, MockMediaProvider, TikTokPublisher, YouTubePublisher)
 
 def now() -> str:
@@ -24,7 +25,17 @@ class ProductionPipeline:
         self.jobs_root = self.data_root / "jobs"
         self.assets_root = self.data_root / "assets"
         self.logs_root = self.data_root / "logs"
-        self.media, self.tts = MockMediaProvider(), EspeakTTSProvider()
+        self.media = MockMediaProvider()
+        tts_provider = os.environ.get("TTS_PROVIDER", "fish-audio").strip().lower()
+        if tts_provider == "fish-audio":
+            self.tts = FishAudioTTSProvider(
+                os.environ.get("FISH_AUDIO_API_KEY", ""),
+                os.environ.get("FISH_AUDIO_REFERENCE_ID", "1f7fb4bc1697479aab869ff685bfa644"),
+                os.environ.get("FISH_AUDIO_MODEL", "s2.1-pro-free"))
+        elif tts_provider == "espeak-ng":
+            self.tts = EspeakTTSProvider()
+        else:
+            raise ValueError(f"Proveedor TTS no reconocido: {tts_provider}")
         subtitle_url = os.environ.get("SUBTITLE_WORKER_URL", "").strip()
         if subtitle_url:
             export_dir = os.environ.get("SUBTITLE_EXPORT_DIR") or r"\\wsl.localhost\Ubuntu\home\irvin\PipeLine_Workflows\data\temp\subtitle-export"
@@ -63,6 +74,47 @@ class ProductionPipeline:
                                 capture_output=True, text=True, timeout=30)
         if result.returncode: raise ValueError(f"Archivo corrupto o no reproducible: {path.name}")
         return json.loads(result.stdout)
+
+    def rebuild_narration(self, content_id: str) -> dict[str, Any]:
+        """Regenerate a READY job's script, voice and video while preserving a revision backup."""
+        with self._processing_lock:
+            context = self.bank.get_job_context(content_id)
+            if context is None:
+                raise KeyError(f"No existe el trabajo {content_id}")
+            job, idea = context
+            if job["estado"] != "READY":
+                raise ValueError("La regeneración de narración solo acepta trabajos READY.")
+            if not isinstance(self.tts, FishAudioTTSProvider) or not self.tts.api_key:
+                raise ValueError("Configura FISH_AUDIO_API_KEY en el .env local antes de regenerar.")
+            duration = max(15, int(idea.get("duracion_objetivo") or 45))
+            package = build_package(job, idea, generate_narration(
+                str(idea.get("idea") or idea.get("titulo") or ""),
+                str(idea.get("resumen") or ""), duration, str(idea.get("tipo") or "")))
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            revision = self.data_root / "revisions" / content_id / timestamp
+            asset = self._asset(content_id)
+            jobs = self.jobs_root / content_id
+            if asset.exists():
+                shutil.copytree(asset, revision / "assets",
+                                ignore=shutil.ignore_patterns("revisions"))
+            if jobs.exists():
+                shutil.copytree(jobs, revision / "job")
+            save_package(package, self.jobs_root, content_id)
+            for relative in ("audio/narration.wav", "masters/master_sin_subtitulos.mp4",
+                             "masters/master_final.mp4", "subtitles/captions.es.srt"):
+                target = asset / relative
+                if target.exists():
+                    target.unlink()
+            for filename in ("tiktok.json", "facebook.json", "youtube_shorts.json",
+                             "instagram.json", "qa_report.json", "publish_dry_run.json"):
+                target = asset / "metadata" / filename
+                if target.exists():
+                    target.unlink()
+            self.bank.set_job_state(content_id, "MEDIA_READY")
+            self._log(content_id, "revision", "started", f"Nueva narración solicitada; copia previa: {revision}")
+            result = self._process_job_locked(content_id)
+            result["revision_backup"] = str(revision)
+            return result
 
     def process_job(self, content_id: str) -> dict[str, Any]:
         with self._processing_lock:

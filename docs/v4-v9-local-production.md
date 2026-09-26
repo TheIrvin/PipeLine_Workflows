@@ -29,3 +29,12 @@ La primera transcripción descarga el modelo Whisper base desde Hugging Face y l
 ## Publicación
 
 POST /api/jobs/CONTENT-ID/publish-dry-run genera una simulación para las cuatro plataformas. La publicación real requiere configuración y autorización explícita en cada plataforma. No se necesita Google Cloud.
+
+
+## Guion y voz expresiva
+
+Ollama con Qwen 3 4B escribe el guion en local. Recibe la idea y su contexto para escoger un patrón narrativo específico por tema, con beats cortos y secuenciales, y marcas de emoción para la voz. Fish Audio sintetiza ese texto usando el perfil indicado por el usuario; esa etapa requiere conexión y clave API y envía el guion a Fish Audio.
+
+Agrega la clave privada a FISH_AUDIO_API_KEY en el archivo local .env. El perfil configurado es 1f7fb4bc1697479aab869ff685bfa644 y el modelo es s2.1-pro-free. No compartas la clave ni la subas a Git.
+
+El endpoint para rehacer un job ya aprobado, con respaldo automático de los assets anteriores, es POST http://localhost:8091/api/jobs/CONTENT-000001/rebuild-narration.

@@ -30,7 +30,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/healthz":
             subtitle_provider = "existing-subtitle-backend" if os.environ.get("SUBTITLE_WORKER_URL", "").strip() else "local-exact-script"
-            self._send(200, {"status": "ok", "providers": {"media": "mock", "tts": "espeak-ng", "subtitles": subtitle_provider}})
+            self._send(200, {"status": "ok", "providers": {
+                "media": "mock", "tts": os.environ.get("TTS_PROVIDER", "fish-audio"),
+                "fish_audio_key_configured": bool(os.environ.get("FISH_AUDIO_API_KEY", "").strip()),
+                "narration_writer": "ollama-local",
+                "narration_model": os.environ.get("NARRATION_MODEL", "qwen3:4b"),
+                "subtitles": subtitle_provider}})
             return
         match = re.fullmatch(r"/api/jobs/(CONTENT-[0-9]{6})", self.path)
         if match:
@@ -47,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
                 jobs = PIPELINE.process_pending(int(body.get("limit", 1)))
                 self._send(200, {"processed": len(jobs), "jobs": jobs})
                 return
-            match = re.fullmatch(r"/api/jobs/(CONTENT-[0-9]{6})/(resume|publish-dry-run)", self.path)
+            match = re.fullmatch(r"/api/jobs/(CONTENT-[0-9]{6})/(resume|publish-dry-run|rebuild-narration)", self.path)
             if match:
                 job_id, action = match.groups()
                 context = BANK.get_job_context(job_id)
@@ -58,6 +63,8 @@ class Handler(BaseHTTPRequestHandler):
                     if context[0]["estado"] in {"WAITING_PROVIDER", "WAITING_MANUAL_ACTION"}:
                         BANK.set_job_retry(job_id, context[0].get("resume_state") or "MEDIA_QUEUED")
                     self._send(200, PIPELINE.process_job(job_id))
+                elif action == "rebuild-narration":
+                    self._send(200, PIPELINE.rebuild_narration(job_id))
                 else:
                     self._send(200, {"dry_run": True, "platforms": PIPELINE.dry_run_publish(job_id)})
                 return

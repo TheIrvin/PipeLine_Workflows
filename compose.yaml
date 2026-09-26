@@ -1,14 +1,45 @@
 name: pipeline_workflows
 
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pipeline-ollama
+    restart: unless-stopped
+    volumes:
+      - ./data/ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  narration-model-init:
+    image: ollama/ollama:latest
+    container_name: pipeline-narration-model-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      NARRATION_MODEL: ${NARRATION_MODEL:-qwen3:4b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$$NARRATION_MODEL\""]
+    restart: "no"
+
   idea-bank-api:
     build:
       context: .
       dockerfile: services/idea_bank/Dockerfile
     container_name: pipeline-idea-bank
     restart: unless-stopped
+    depends_on:
+      narration-model-init:
+        condition: service_completed_successfully
     environment:
       IDEA_DB_PATH: /app/data/ideas/ideas.db
+      OLLAMA_URL: http://ollama:11434
+      NARRATION_MODEL: ${NARRATION_MODEL:-qwen3:4b}
       IDEA_API_PORT: "8090"
       IDEA_MIN_PENDING: ${IDEA_MIN_PENDING:-30}
       IDEA_BATCH_SIZE: ${IDEA_BATCH_SIZE:-30}
@@ -60,6 +91,10 @@ services:
       PIPELINE_API_PORT: "8091"
       CONTENT_BUFFER_MIN: ${CONTENT_BUFFER_MIN:-7}
       CONTENT_BUFFER_TARGET: ${CONTENT_BUFFER_TARGET:-14}
+      TTS_PROVIDER: ${TTS_PROVIDER:-fish-audio}
+      FISH_AUDIO_API_KEY: ${FISH_AUDIO_API_KEY:-}
+      FISH_AUDIO_REFERENCE_ID: ${FISH_AUDIO_REFERENCE_ID:-1f7fb4bc1697479aab869ff685bfa644}
+      FISH_AUDIO_MODEL: ${FISH_AUDIO_MODEL:-s2.1-pro-free}
       TTS_VOICE: ${TTS_VOICE:-es-la}
       TTS_SPEED: ${TTS_SPEED:-170}
       SUBTITLE_WORKER_URL: http://subtitle-worker:8000

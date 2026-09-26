@@ -206,7 +206,7 @@ class IdeaBank:
             "SUBTITLING": {"METADATA_READY", "WAITING_MANUAL_ACTION", "RETRY_PENDING"},
             "METADATA_READY": {"QA_PENDING", "RETRY_PENDING"},
             "QA_PENDING": {"READY", "RETRY_PENDING"},
-            "READY": {"SCHEDULED", "PUBLISHING"},
+            "READY": {"SCHEDULED", "PUBLISHING", "MEDIA_READY"},
             "SCHEDULED": {"PUBLISHING"},
             "PUBLISHING": {"PUBLISHED", "READY", "RETRY_PENDING", "WAITING_MANUAL_ACTION"},
             "FAILED": set(),

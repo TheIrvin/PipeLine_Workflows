@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import subprocess
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,55 @@ class EspeakTTSProvider:
         if not output.exists() or output.stat().st_size < 44:
             raise RuntimeError("TTS no produjo un WAV válido.")
         return {"path": str(output), "voice": selected_voice, "provider": "espeak-ng", "size": output.stat().st_size}
+
+
+class FishAudioTTSProvider:
+    """Fish Audio API using the selected voice; never falls back to robotic offline TTS."""
+    endpoint = "https://api.fish.audio/v1/tts"
+
+    def __init__(self, api_key: str, reference_id: str, model: str = "s2.1-pro-free"):
+        self.api_key = api_key.strip()
+        self.reference_id = reference_id.strip()
+        self.model = model.strip() or "s2.1-pro-free"
+
+    def synthesize(self, text: str, language: str, voice: str, speed: int, output: Path) -> dict:
+        if not self.api_key:
+            raise RuntimeError("Falta FISH_AUDIO_API_KEY en el .env local.")
+        if not self.reference_id:
+            raise RuntimeError("Falta FISH_AUDIO_REFERENCE_ID.")
+        spoken = text.strip()
+        if not spoken:
+            raise ValueError("El texto TTS está vacío.")
+        payload = json.dumps({
+            "text": spoken,
+            "reference_id": self.reference_id,
+            "format": "wav",
+            "temperature": 0.75,
+            "top_p": 0.85,
+            "chunk_length": 300,
+            "condition_on_previous_chunks": True,
+            "prosody": {"speed": 1.0, "volume": 0, "normalize_loudness": True},
+            "normalize": True,
+        }, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(self.endpoint, data=payload, headers={
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "model": self.model,
+        }, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=300) as response:
+                audio = response.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read(1000).decode("utf-8", errors="replace")
+            raise RuntimeError(f"Fish Audio rechazó la solicitud (HTTP {exc.code}): {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"No se pudo conectar con Fish Audio: {exc.reason}") from exc
+        if len(audio) < 44 or audio[:4] != b"RIFF" or audio[8:12] != b"WAVE":
+            raise RuntimeError("Fish Audio no devolvió un WAV válido.")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(audio)
+        return {"path": str(output), "voice": self.reference_id, "provider": "fish-audio",
+                "model": self.model, "size": len(audio)}
 
 
 class LocalSubtitleWorker:
