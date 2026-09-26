@@ -1,0 +1,35 @@
+{
+  "id": "4d520d6a-4d0b-4dc8-bcad-35f440c8d923",
+  "name": "V4–V9 — Producción local, QA y buffer",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 1 }] } },
+      "id": "761a6d07-5196-4c60-9a81-a8304d92eccd",
+      "name": "Cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://production-worker:8091/api/production/process",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"limit\": 1 }",
+        "options": { "timeout": 900000 }
+      },
+      "id": "7db6003b-7760-42cd-a964-c55d63b53aad",
+      "name": "Procesar siguiente job local",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [40, 0]
+    }
+  ],
+  "connections": { "Cada minuto": { "main": [[{ "node": "Procesar siguiente job local", "type": "main", "index": 0 }]] } },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "94a35bbc-b1f6-4768-84f4-f05c28eb260f",
+  "meta": { "templateCredsSetupCompleted": true },
+  "tags": []
+}

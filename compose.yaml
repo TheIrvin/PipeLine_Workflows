@@ -23,12 +23,44 @@ services:
       retries: 3
       start_period: 5s
 
+  production-worker:
+    build:
+      context: .
+      dockerfile: services/production/Dockerfile
+    container_name: pipeline-production-worker
+    restart: unless-stopped
+    depends_on:
+      idea-bank-api:
+        condition: service_healthy
+    environment:
+      IDEA_DB_PATH: /app/data/ideas/ideas.db
+      PIPELINE_DATA_PATH: /app/data
+      PIPELINE_API_PORT: "8091"
+      CONTENT_BUFFER_MIN: ${CONTENT_BUFFER_MIN:-7}
+      CONTENT_BUFFER_TARGET: ${CONTENT_BUFFER_TARGET:-14}
+      TTS_VOICE: ${TTS_VOICE:-es-la}
+      TTS_SPEED: ${TTS_SPEED:-170}
+      SUBTITLE_WORKER_URL: ${SUBTITLE_WORKER_URL:-}
+      SUBTITLE_EXPORT_DIR: ${SUBTITLE_EXPORT_DIR:-}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8091:8091"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
   n8n:
     image: docker.n8n.io/n8nio/n8n:${N8N_VERSION}
     container_name: pipeline-n8n
     restart: unless-stopped
     depends_on:
       idea-bank-api:
+        condition: service_healthy
+      production-worker:
         condition: service_healthy
     ports:
       - "127.0.0.1:5678:5678"

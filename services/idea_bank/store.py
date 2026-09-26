@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Sequence
 
@@ -15,6 +15,15 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+class ClosingConnection(sqlite3.Connection):
+    """Close SQLite handles at the end of every with-block."""
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
+
 class IdeaBank:
     def __init__(self, db_path: str | Path, provider: TextAIProvider):
         self.db_path = Path(db_path)
@@ -23,7 +32,7 @@ class IdeaBank:
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=10)
+        conn = sqlite3.connect(self.db_path, timeout=10, factory=ClosingConnection)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
@@ -46,16 +55,37 @@ class IdeaBank:
                     job_id TEXT UNIQUE,
                     notas TEXT NOT NULL DEFAULT '',
                     titulo_final TEXT NOT NULL DEFAULT '',
-                    fecha_publicacion TEXT
+                    fecha_publicacion TEXT,
+                    fecha_listo TEXT
                 );
                 CREATE TABLE IF NOT EXISTS jobs (
                     seq INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT UNIQUE NOT NULL,
                     idea_id TEXT UNIQUE NOT NULL REFERENCES ideas(id),
                     estado TEXT NOT NULL,
-                    fecha_creacion TEXT NOT NULL
+                    fecha_creacion TEXT NOT NULL,
+                    resume_state TEXT,
+                    retry_count INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    next_retry_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS job_events (
+                    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL REFERENCES jobs(job_id),
+                    timestamp TEXT NOT NULL,
+                    module TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    error_code TEXT
                 );
             """)
+            idea_columns = {row["name"] for row in conn.execute("PRAGMA table_info(ideas)")}
+            if "fecha_listo" not in idea_columns:
+                conn.execute("ALTER TABLE ideas ADD COLUMN fecha_listo TEXT")
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+            for name, declaration in (("resume_state", "TEXT"), ("retry_count", "INTEGER NOT NULL DEFAULT 0"), ("last_error", "TEXT"), ("next_retry_at", "TEXT")):
+                if name not in columns:
+                    conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {declaration}")
 
     def all_ideas(self, state: str | None = None) -> list[dict]:
         with self._connect() as conn:
@@ -139,7 +169,7 @@ class IdeaBank:
     def get_job_context(self, job_id: str) -> tuple[dict, dict] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT j.job_id, j.idea_id, j.estado, j.fecha_creacion, "
+                "SELECT j.*, "
                 "i.idea, i.tipo, i.resumen, i.duracion_objetivo, i.prioridad "
                 "FROM jobs j JOIN ideas i ON i.id = j.idea_id WHERE j.job_id = ?",
                 (job_id,),
@@ -147,7 +177,7 @@ class IdeaBank:
         if row is None:
             return None
         data = dict(row)
-        job = {key: data[key] for key in ("job_id", "idea_id", "estado", "fecha_creacion")}
+        job = {key: data[key] for key in ("job_id", "idea_id", "estado", "fecha_creacion", "resume_state", "retry_count", "last_error", "next_retry_at")}
         idea = {
             "id": data["idea_id"], "idea": data["idea"], "tipo": data["tipo"],
             "resumen": data["resumen"], "duracion_objetivo": data["duracion_objetivo"],
@@ -165,13 +195,24 @@ class IdeaBank:
 
     def set_job_state(self, job_id: str, state: str) -> dict:
         state = state.strip().upper()
-        allowed = {"IDEA_APPROVED", "SCRIPT_READY", "MEDIA_QUEUED"}
-        if state not in allowed:
-            raise ValueError(f"Estado de job no válido: {state}")
         transitions = {
             "IDEA_APPROVED": {"SCRIPT_READY"},
             "SCRIPT_READY": {"MEDIA_QUEUED"},
-            "MEDIA_QUEUED": set(),
+            "MEDIA_QUEUED": {"MEDIA_READY", "MEDIA_PARTIAL", "WAITING_PROVIDER", "WAITING_MANUAL_ACTION", "RETRY_PENDING"},
+            "MEDIA_PARTIAL": {"MEDIA_QUEUED", "MEDIA_READY", "WAITING_PROVIDER", "RETRY_PENDING"},
+            "MEDIA_READY": {"TTS_READY", "WAITING_PROVIDER", "RETRY_PENDING"},
+            "TTS_READY": {"ASSEMBLING", "WAITING_PROVIDER", "RETRY_PENDING"},
+            "ASSEMBLING": {"SUBTITLING", "RETRY_PENDING"},
+            "SUBTITLING": {"METADATA_READY", "WAITING_MANUAL_ACTION", "RETRY_PENDING"},
+            "METADATA_READY": {"QA_PENDING", "RETRY_PENDING"},
+            "QA_PENDING": {"READY", "RETRY_PENDING"},
+            "READY": {"SCHEDULED", "PUBLISHING"},
+            "SCHEDULED": {"PUBLISHING"},
+            "PUBLISHING": {"PUBLISHED", "READY", "RETRY_PENDING", "WAITING_MANUAL_ACTION"},
+            "FAILED": set(),
+            "RETRY_PENDING": {"MEDIA_QUEUED", "MEDIA_READY", "TTS_READY", "ASSEMBLING", "SUBTITLING", "METADATA_READY", "QA_PENDING", "WAITING_PROVIDER", "WAITING_MANUAL_ACTION"},
+            "WAITING_PROVIDER": {"RETRY_PENDING", "MEDIA_QUEUED"},
+            "WAITING_MANUAL_ACTION": {"RETRY_PENDING", "SUBTITLING"},
         }
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -182,8 +223,64 @@ class IdeaBank:
             if current != state and state not in transitions.get(current, set()):
                 raise ValueError(f"Transición no permitida: {current} -> {state}")
             if current != state:
-                conn.execute("UPDATE jobs SET estado = ? WHERE job_id = ?", (state, job_id))
+                conn.execute("UPDATE jobs SET estado = ?, resume_state = NULL, next_retry_at = NULL, last_error = NULL WHERE job_id = ?", (state, job_id))
+                conn.execute("INSERT INTO job_events(job_id,timestamp,module,status,message) VALUES(?,?,?,?,?)",
+                             (job_id, utc_now(), "state", state, f"{current} -> {state}"))
             return dict(conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone())
+
+    def set_job_retry(self, job_id: str, resume_state: str) -> dict:
+        resume_state = resume_state.strip().upper()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"No existe el trabajo {job_id}")
+            if row["estado"] not in {"READY", "PUBLISHED", "FAILED"}:
+                retry_count = int(row["retry_count"] or 0) + 1
+                if retry_count >= 5:
+                    conn.execute("UPDATE jobs SET estado='FAILED', resume_state=NULL, retry_count=?, next_retry_at=NULL WHERE job_id=?",
+                                 (retry_count, job_id))
+                    conn.execute("INSERT INTO job_events(job_id,timestamp,module,status,message,error_code) VALUES(?,?,?,?,?,?)",
+                                 (job_id, utc_now(), "retry", "failed", "Se alcanzó el límite de 5 intentos.", "RETRY_LIMIT_REACHED"))
+                else:
+                    delay = min(3600, 60 * (2 ** (retry_count - 1)))
+                    next_retry = (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(timespec="seconds")
+                    conn.execute("UPDATE jobs SET estado='RETRY_PENDING', resume_state=?, retry_count=?, next_retry_at=? WHERE job_id=?",
+                                 (resume_state, retry_count, next_retry, job_id))
+            return dict(conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone())
+
+    def set_idea_state_for_job(self, job_id: str, state: str) -> dict:
+        state = state.strip().upper()
+        if state not in SHEET_STATES:
+            raise ValueError(f"Estado de idea no válido: {state}")
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT idea_id FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"No existe el trabajo {job_id}")
+            conn.execute("UPDATE ideas SET estado = ? WHERE id = ?", (state, row["idea_id"]))
+            return dict(conn.execute("SELECT * FROM ideas WHERE id = ?", (row["idea_id"],)).fetchone())
+
+    def mark_idea_ready_for_job(self, job_id: str, title: str) -> dict:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT idea_id FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"No existe el trabajo {job_id}")
+            conn.execute("UPDATE ideas SET estado='LISTA', titulo_final=?, fecha_listo=? WHERE id=?",
+                         (title.strip(), utc_now(), row["idea_id"]))
+            return dict(conn.execute("SELECT * FROM ideas WHERE id=?", (row["idea_id"],)).fetchone())
+
+    def record_job_event(self, job_id: str, module: str, status: str, message: str, error_code: str | None = None) -> None:
+        with self._connect() as conn:
+            conn.execute("INSERT INTO job_events(job_id,timestamp,module,status,message,error_code) VALUES(?,?,?,?,?,?)",
+                         (job_id, utc_now(), module, status, message[:2000], error_code))
+            conn.execute("UPDATE jobs SET last_error = ? WHERE job_id = ?", (message[:2000] if error_code else None, job_id))
+
+    def job_events(self, job_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM job_events WHERE job_id = ? ORDER BY seq", (job_id,)).fetchall()
+        return [dict(row) for row in rows]
 
     def approve(self, idea_id: str) -> dict:
         """Convenience method for CLI demos: approve, then run watcher once."""
