@@ -84,6 +84,7 @@ El backup detiene servicios brevemente y guarda persistencia de n8n, datos y una
 - `logs/`: registros locales (no se versionan).
 - `scripts/`: health-check y backup.
 - `docs/`: documentación del proyecto.
+- [Skill de imágenes y animación](.agents/skills/pipeline-visual-media/SKILL.md): guía reutilizable para crear, revisar y entregar los medios manuales.
 
 ## Planificador local V3
 

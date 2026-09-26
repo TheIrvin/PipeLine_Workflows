@@ -54,45 +54,52 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
                   for i, desc in enumerate(descriptions)]
     scenes = {"content_id": job["job_id"], "duration_target": target, "scenes": scene_rows}
     continuity = {
-        "character": "Usa la referencia adjunta para mantener reconocibles la identidad y los rasgos del personaje; crea una pose y una escena nuevas.",
-        "colors": "Violeta oscuro, dorado tenue y acentos magenta, constantes en todas las escenas.",
-        "environment": "Espacio urbano nocturno estilizado con partículas y contraste dramático.",
-        "camera": "Encuadre vertical 9:16; variar la escala y el ángulo entre escenas sin perder continuidad.",
-        "style": "Ilustración anime cinematográfica, alto contraste y líneas dinámicas.",
+        "character": "Use the uploaded reference image as the source of truth for the character's identity, recognizable features, canonical colors, costume, and materials. Create a new pose and scene.",
+        "colors": "Preserve colors from the character reference; choose scene colors that support the narration without recoloring the character.",
+        "environment": "Choose a setting that makes the specific narrated beat visually clear; do not force a location or time of day that the story does not support.",
+        "camera": "Vertical 9:16 framing; vary shot scale and angle between scenes while keeping the subject readable.",
+        "style": "Match the illustration medium and visual language of the character reference; use a clear cinematic composition.",
         "aspect_ratio": "9:16",
-        "continuity": "Mantener la identidad del personaje, la paleta, el ambiente y la dirección de luz en todas las escenas.",
+        "continuity": "Keep the character's identity, reference-based palette, and visual medium consistent across scenes; let the setting and composition change when the story beat requires it.",
     }
     shot_directions = [
-        "Plano medio cercano que destaque al personaje y la acción principal.",
-        "Plano más abierto que sitúe al personaje en el entorno y muestre la consecuencia de la acción.",
-        "Plano medio desde un ángulo distinto, centrado en el conflicto o límite de la escena.",
-        "Composición final clara e icónica, con el personaje como foco y espacio visual alrededor.",
+        "Use a clear medium close-up that makes the main character and defining action easy to read.",
+        "Use a wider composition that places the character in the setting and shows the immediate visible consequence.",
+        "Use a distinct medium shot or angle focused on the conflict, countermeasure, or limitation described by this beat.",
+        "Create a memorable closing composition with one clear focal point and uncluttered space around it.",
     ]
     per_scene = []
+    animation_moves = [
+        "Camera: a gentle push-in that does not crop the subject. Motion: one subtle movement in the most important visible effect or detail, if present.",
+        "Camera: a slow horizontal slide, not an orbit. Motion: gently move one visible environmental detail, such as existing particles, light, or reflections.",
+        "Camera: a slight pullback or tilt only if the composition allows it without revealing invented space. Motion: subtly animate one existing effect that reinforces the visible conflict.",
+        "Camera: keep the frame almost locked. Motion: let one existing focal effect softly pulse or settle; if none is visible, use only minimal natural movement in already visible hair, fabric, or atmosphere.",
+    ]
     for index, scene in enumerate(scene_rows):
         start = round(index * len(visible_beats) / len(scene_rows))
         end = round((index + 1) * len(visible_beats) / len(scene_rows))
         context = " ".join(visible_beats[start:end]) or descriptions[index]
-        image_prompt = ("Usa la imagen de referencia adjunta para conservar la identidad y los rasgos reconocibles del personaje principal. "
-                        "Crea una pose, una acción y una composición nuevas; no copies el fondo ni el encuadre de la referencia. "
-                        f"{continuity['style']} {continuity['environment']} "
-                        f"Idea visual de esta escena: {context} "
-                        "Tradúcela a una sola acción visual clara; no escribas ni dibujes el texto narrado. "
-                        f"{shot_directions[index]} {continuity['colors']} "
-                        "Formato vertical 9:16, silueta legible, profundidad cinematográfica y espacio libre cerca del borde superior e inferior. "
-                        "No añadas texto, subtítulos, logos, marcas de agua, collage ni elementos de interfaz. "
-                        f"Mantén la continuidad visual con las demás imágenes: {continuity['continuity']}")
-        animation_moves = [
-            "Haz un acercamiento lento hacia el sujeto principal y anima suavemente solo los detalles que ya sean visibles, como la postura, la ropa, la luz o las partículas.",
-            "Desplaza la cámara lateralmente con suavidad alrededor del sujeto. Mueve únicamente elementos que ya aparezcan en la imagen, sin alterar su forma ni su posición principal.",
-            "Haz un leve retroceso de cámara con una inclinación sutil. Da movimiento discreto solo a los elementos visibles existentes, manteniendo intacta la escena.",
-            "Haz un acercamiento lento y termina con la cámara estable. Si la imagen ya contiene luz o partículas, anímalas de forma tenue; conserva inmóviles los demás elementos.",
-        ]
-        video_prompt = ("Anima únicamente la imagen de referencia proporcionada. "
-                        "Conserva exactamente los personajes, sus rostros, identidad, diseño, ropa y pose, además de los objetos, el fondo, los colores, la iluminación y el estilo visual. "
-                        f"{animation_moves[index]} "
-                        "Mantén una sola toma continua, el sujeto reconocible y el encuadre vertical 9:16. "
-                        "No agregues, elimines ni transformes personajes u objetos. No cambies de escena ni añadas texto, subtítulos, logos, marcas de agua, diálogo o música.")
+        image_prompt = (
+            "Create one polished vertical 9:16 illustration for the scene described below. "
+            "Use the uploaded character reference only to preserve the character's recognizable identity, face, silhouette, canonical colors, costume, and materials. "
+            "Do not copy the reference pose, crop, camera angle, or background; create a new pose and a scene-specific composition. "
+            f"Visual beat from the approved Spanish narration (show its meaning, never its words): {context}. "
+            "Turn this beat into one concrete, immediately readable visual moment. If the narration is abstract, depict its clearest stated consequence rather than adding a new power, event, or fact. "
+            f"{shot_directions[index]} "
+            f"{continuity['style']} {continuity['environment']} {continuity['colors']} "
+            "Keep the main silhouette distinct, use cinematic depth and coherent lighting, and leave safe visual margin near the top and bottom for vertical editing. "
+            "If no character reference was attached, follow the written scene and do not invent a known character's canonical appearance. "
+            "Do not render narration, lettering, subtitles, logos, watermarks, UI, or a collage. "
+            f"Visual continuity across this story: {continuity['continuity']}"
+        )
+        video_prompt = (
+            "Animate the uploaded still image as the opening frame of one continuous shot. "
+            "Preserve the exact character identity, face, proportions, pose, costume, markings, props, color palette, background layout, lighting, and illustration style in the reference. "
+            "Keep the character recognizable and do not redesign, reshape, or replace any visible element. "
+            f"{animation_moves[index]} "
+            "Use only elements already visible in the reference; keep all other parts still. Preserve the original vertical 9:16 composition. "
+            "No cuts, scene changes, orbiting camera, camera shake, morphing, new characters, objects, effects, or hidden details. No text, subtitles, logos, watermark, dialogue, sound effects, or music."
+        )
         image_name = f"imagen_{index+1:02d}.png"
         clip_name = f"clip_{index+1:02d}.mp4"
         per_scene.append({"scene_id": scene["scene_id"], "order": index+1,
@@ -102,11 +109,11 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
     prompts = {"content_id": job["job_id"], "continuity": continuity,
                "manual_scene_prompts": per_scene, "groups": [
         {"prompt_id": "PROMPT_A", "scene_ids": [scene_rows[0]["scene_id"], scene_rows[1]["scene_id"]],
-         "prompt": f"{continuity['style']} {continuity['environment']} {descriptions[0]}. Transición visual a: {descriptions[1]}. Vertical 9:16. {continuity['continuity']}"},
+         "prompt": f"Create one vertical 9:16 illustration in the visual style of the uploaded character reference. Preserve the character's identity and canonical colors. Interpret these Spanish scene beats visually without rendering words: {beat_groups[0]} / {beat_groups[1]}. Use a new, readable composition and do not add unsupported story events."},
         {"prompt_id": "PROMPT_B", "scene_ids": [scene_rows[2]["scene_id"]],
-         "prompt": f"{continuity['style']} {continuity['environment']} {descriptions[2]}. Vertical 9:16. {continuity['continuity']}"},
+         "prompt": f"Create one vertical 9:16 illustration in the visual style of the uploaded character reference. Preserve the character's identity and canonical colors. Interpret this Spanish scene beat visually without rendering words: {beat_groups[2]}. Use a new, readable composition and do not add unsupported story events."},
         {"prompt_id": "PROMPT_C", "scene_ids": [scene_rows[3]["scene_id"]],
-         "prompt": f"{continuity['style']} {continuity['environment']} {descriptions[3]}. Vertical 9:16. {continuity['continuity']}"},
+         "prompt": f"Create one vertical 9:16 illustration in the visual style of the uploaded character reference. Preserve the character's identity and canonical colors. Interpret this Spanish scene beat visually without rendering words: {beat_groups[3]}. Use a memorable, readable composition and do not add unsupported story events."},
     ]}
     package = {"plan.json": concept, "script.json": script, "scenes.json": scenes, "media_prompts.json": prompts}
     validate_package(package)
@@ -154,7 +161,8 @@ def save_package(package: dict[str, dict[str, Any]], output_root: str | Path, co
                f"Carpeta de trabajo: `Downloads/Pipeline_Workflows/ManualMedia/{content_id}/`", "",
                "Usa `imagenes/prompt_XX.txt` para crear cada referencia y guarda el resultado como `imagenes/imagen_XX.png`.",
                "Luego usa `animar_imagenes/prompt_XX.txt` con esa imagen de referencia y guarda el clip como `animar_imagenes/clip_XX.mp4`.",
-               "Une los clips en el orden indicado y guarda el video final como `video_completo.mp4` en la carpeta principal del trabajo.", ""]
+               "Los prompts usan instrucciones en inglés; adjunta el archivo real de referencia al generar cada imagen y usa la imagen correspondiente como entrada al animarla.",
+               "Los prompts no fijan duración. Une los clips en el orden indicado y guarda el video final como `video_completo.mp4` en la carpeta principal del trabajo.", ""]
     for item in prompts.get("manual_scene_prompts", []):
         handoff.extend([f"## Prompt {item['order']:02d} — {item['narration_context']}", "",
                         f"Imagen: `imagenes/{item['image_filename']}` | Clip: `animar_imagenes/{item['video_filename']}`", "",

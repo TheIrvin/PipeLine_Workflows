@@ -24,6 +24,7 @@ Los originales válidos no se borran ni sobrescriben durante una reanudación. L
 ## Entrega manual de prompts y video unido
 
 Al aprobar una idea, se crea `C:\Users\irvin\Downloads\Pipeline_Workflows\ManualMedia\CONTENT-ID\` con dos subcarpetas: `imagenes` y `animar_imagenes`. En cada una encontrarás prompts numerados que se corresponden: `imagenes/prompt_01.txt` crea `imagen_01.png`; `animar_imagenes/prompt_01.txt` anima esa imagen y sugiere guardar `clip_01.mp4`. Repite por cada número. Los prompts no fijan una duración.
+Las instrucciones de imagen y animación usan inglés como formato interoperable (especialmente para Veo); el beat de la narración permanece en español como contexto visual. Adjunta el archivo real de referencia de personaje en cada generación de imagen y conserva sus colores originales; usa cada imagen resultante como referencia de su clip correspondiente. Consulta `.agents/skills/pipeline-visual-media/` para variaciones y resolución de errores.
 
 Genera las imágenes y clips manualmente, une los clips en tu editor y guarda el único MP4 unido como `video_completo.mp4` directamente en la carpeta `CONTENT-ID`, junto a `LEEME.txt`. No lo pongas dentro de una tercera carpeta. El worker valida ese MP4 y continúa con la voz local, el montaje vertical, subtítulos, metadata y QA. El video se ajusta al largo real de la narración sintetizada; el texto de subtítulos se conserva y sus tiempos se detectan desde el audio.
 
