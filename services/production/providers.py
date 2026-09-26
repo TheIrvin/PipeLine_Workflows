@@ -1,6 +1,7 @@
 """Replaceable local/mock providers for media, TTS, subtitles and publishing."""
 from __future__ import annotations
 import json
+import re
 import subprocess
 import urllib.error
 import urllib.request
@@ -43,6 +44,52 @@ class EspeakTTSProvider:
         if not output.exists() or output.stat().st_size < 44:
             raise RuntimeError("TTS no produjo un WAV válido.")
         return {"path": str(output), "voice": selected_voice, "provider": "espeak-ng", "size": output.stat().st_size}
+
+
+class Qwen3TTSLocalProvider:
+    """Local Qwen3-TTS voice cloning over an internal Docker HTTP service."""
+    def __init__(self, base_url: str, reference_audio: str, reference_text_file: str,
+                 model: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"):
+        self.base_url = base_url.rstrip("/")
+        self.reference_audio = Path(reference_audio)
+        self.reference_text_file = Path(reference_text_file)
+        self.model = model
+
+    def validate_configuration(self) -> None:
+        if not self.reference_audio.is_file():
+            raise RuntimeError(f"No se encontró el audio de referencia: {self.reference_audio}")
+        if not self.reference_text_file.is_file() or not self.reference_text_file.read_text(encoding="utf-8").strip():
+            raise RuntimeError(f"No se encontró la transcripción de referencia: {self.reference_text_file}")
+
+    def synthesize(self, text: str, language: str, voice: str, speed: int, output: Path) -> dict:
+        self.validate_configuration()
+        spoken = re.sub(r"\[(?:curious|narrator|emphatic)\]\s*", "", text, flags=re.IGNORECASE).strip()
+        spoken = re.sub(r"\n{2,}", " ", spoken)
+        if not spoken:
+            raise ValueError("El texto TTS está vacío.")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps({
+            "text": spoken,
+            "language": "Spanish" if language.lower().startswith("es") else language,
+            "reference_audio": str(self.reference_audio),
+            "reference_text": self.reference_text_file.read_text(encoding="utf-8").strip(),
+            "output": str(output),
+            "model": self.model,
+        }, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(self.base_url + "/synthesize", data=payload,
+                                         headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=900) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read(1500).decode("utf-8", errors="replace")
+            raise RuntimeError(f"Qwen3-TTS local falló (HTTP {exc.code}): {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"No se pudo conectar con Qwen3-TTS local: {exc.reason}") from exc
+        if not output.is_file() or output.stat().st_size < 44:
+            raise RuntimeError("Qwen3-TTS no produjo un WAV válido.")
+        return {"path": str(output), "voice": "clon-local", "provider": "qwen3-tts-local",
+                "model": result.get("model", self.model), "size": output.stat().st_size}
 
 
 class FishAudioTTSProvider:

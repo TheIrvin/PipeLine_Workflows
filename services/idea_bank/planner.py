@@ -182,7 +182,7 @@ Condiciones:
     payload = json.dumps({"model": model, "stream": False, "format": schema, "messages": [
         {"role": "system", "content": "Escribe solo el guion pedido, sin explicar tu razonamiento."},
         {"role": "user", "content": prompt + "\n/no_think"}],
-        "think": False, "options": {"temperature": 0.68, "top_p": 0.9, "repeat_penalty": 1.16,
+        "think": False, "keep_alive": 0, "options": {"temperature": 0.68, "top_p": 0.9, "repeat_penalty": 1.16,
                                      "num_ctx": 4096, "num_predict": 420}}).encode()
     request = urllib.request.Request(base + "/api/chat", data=payload,
                                      headers={"Content-Type": "application/json"}, method="POST")

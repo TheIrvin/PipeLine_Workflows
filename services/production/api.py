@@ -31,7 +31,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/healthz":
             subtitle_provider = "existing-subtitle-backend" if os.environ.get("SUBTITLE_WORKER_URL", "").strip() else "local-exact-script"
             self._send(200, {"status": "ok", "providers": {
-                "media": "mock", "tts": os.environ.get("TTS_PROVIDER", "fish-audio"),
+                "media": "mock", "tts": os.environ.get("TTS_PROVIDER", "qwen3-tts-local"),
+                "qwen_tts_reference_configured": (
+                    Path(os.environ.get("QWEN_TTS_REFERENCE_AUDIO", "/app/data/models/voice-reference/Audio_Ejemplo.mp3")).is_file()
+                    and Path(os.environ.get("QWEN_TTS_REFERENCE_TEXT_FILE", "/app/data/models/voice-reference/Audio_Ejemplo.txt")).is_file()),
                 "fish_audio_key_configured": bool(os.environ.get("FISH_AUDIO_API_KEY", "").strip()),
                 "narration_writer": "ollama-local",
                 "narration_model": os.environ.get("NARRATION_MODEL", "qwen3:4b"),

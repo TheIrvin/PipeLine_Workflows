@@ -3,7 +3,7 @@
 ## Modo local por defecto
 
 - V4 usa MockMediaProvider: crea imágenes PPM deterministas y un manifiesto, sin Gemini, cuotas ni llamadas de red.
-- V5 usa espeak-ng sin conexión para TTS, aplica el diccionario configurable pronunciation_dictionary.json y FFmpeg para el master H.264/AAC vertical 9:16.
+- V5 usa Qwen3-TTS 0.6B local para clonar la voz de referencia sin clave API, aplica el diccionario configurable pronunciation_dictionary.json y FFmpeg para el master H.264/AAC vertical 9:16.
 - V6 conserva el texto aprobado y delega la sincronización y el render al backend existente del Mini Editor de Subtítulos, integrado como submódulo y servicio interno Docker. El sidecar SRT conserva los bloques y tiempos para QA.
 - V7 genera JSON para TikTok, Facebook, Instagram y YouTube Shorts; verifica archivos, reproducción, duración, proporción, códecs y metadatos, y añade el contenido al buffer local. Mínimo 7 y objetivo 14. No publica automáticamente al alcanzar el mínimo.
 - V8 incluye adaptadores por plataforma en dry-run. No envían publicaciones reales ni guardan credenciales.
@@ -31,10 +31,8 @@ La primera transcripción descarga el modelo Whisper base desde Hugging Face y l
 POST /api/jobs/CONTENT-ID/publish-dry-run genera una simulación para las cuatro plataformas. La publicación real requiere configuración y autorización explícita en cada plataforma. No se necesita Google Cloud.
 
 
-## Guion y voz expresiva
+## Guion y voz clonada local
 
-Ollama con Qwen 3 4B escribe el guion en local. Recibe la idea y su contexto para escoger un patrón narrativo específico por tema, con beats cortos y secuenciales, y marcas de emoción para la voz. Fish Audio sintetiza ese texto usando el perfil indicado por el usuario; esa etapa requiere conexión y clave API y envía el guion a Fish Audio.
+Ollama con Qwen 3 4B escribe el guion en local y escoge un patrón narrativo distinto según la idea. Qwen3-TTS 0.6B sintetiza en español en una segunda etapa local, sin clave API. Usa la referencia privada data/models/voice-reference/Audio_Ejemplo.mp3 y la transcripción exacta en Audio_Ejemplo.txt. Los modelos se descargan al primer uso y quedan en data/models/qwen3-tts-huggingface/. Ollama descarga su modelo de memoria al acabar de generar el guion para dejar RAM disponible para la síntesis.
 
-Agrega la clave privada a FISH_AUDIO_API_KEY en el archivo local .env. El perfil configurado es 1f7fb4bc1697479aab869ff685bfa644 y el modelo es s2.1-pro-free. No compartas la clave ni la subas a Git.
-
-El endpoint para rehacer un job ya aprobado, con respaldo automático de los assets anteriores, es POST http://localhost:8091/api/jobs/CONTENT-000001/rebuild-narration.
+La voz se clona usando audio y transcripción como entrada. Mantén ambos archivos privados; data/ está excluido de Git. El endpoint para rehacer un job READY con el guion y voz clonada, guardando una copia de la versión previa, es POST http://localhost:8091/api/jobs/CONTENT-000001/rebuild-narration.

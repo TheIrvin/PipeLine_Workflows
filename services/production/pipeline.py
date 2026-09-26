@@ -13,7 +13,7 @@ from typing import Any
 from services.idea_bank.planner import build_package, generate_narration, save_package, validate_package
 from services.idea_bank.store import IdeaBank
 from .providers import (EspeakTTSProvider, ExistingSubtitleBackendAdapter, FacebookPublisher, FishAudioTTSProvider,
-                        InstagramPublisher, LocalSubtitleWorker, MockMediaProvider, TikTokPublisher, YouTubePublisher)
+                        InstagramPublisher, LocalSubtitleWorker, MockMediaProvider, Qwen3TTSLocalProvider, TikTokPublisher, YouTubePublisher)
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -26,8 +26,14 @@ class ProductionPipeline:
         self.assets_root = self.data_root / "assets"
         self.logs_root = self.data_root / "logs"
         self.media = MockMediaProvider()
-        tts_provider = os.environ.get("TTS_PROVIDER", "fish-audio").strip().lower()
-        if tts_provider == "fish-audio":
+        tts_provider = os.environ.get("TTS_PROVIDER", "qwen3-tts-local").strip().lower()
+        if tts_provider == "qwen3-tts-local":
+            self.tts = Qwen3TTSLocalProvider(
+                os.environ.get("QWEN_TTS_URL", "http://qwen-tts-worker:8092"),
+                os.environ.get("QWEN_TTS_REFERENCE_AUDIO", "/app/data/models/voice-reference/Audio_Ejemplo.mp3"),
+                os.environ.get("QWEN_TTS_REFERENCE_TEXT_FILE", "/app/data/models/voice-reference/Audio_Ejemplo.txt"),
+                os.environ.get("QWEN_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-0.6B-Base"))
+        elif tts_provider == "fish-audio":
             self.tts = FishAudioTTSProvider(
                 os.environ.get("FISH_AUDIO_API_KEY", ""),
                 os.environ.get("FISH_AUDIO_REFERENCE_ID", "1f7fb4bc1697479aab869ff685bfa644"),
@@ -84,8 +90,10 @@ class ProductionPipeline:
             job, idea = context
             if job["estado"] != "READY":
                 raise ValueError("La regeneración de narración solo acepta trabajos READY.")
-            if not isinstance(self.tts, FishAudioTTSProvider) or not self.tts.api_key:
+            if isinstance(self.tts, FishAudioTTSProvider) and not self.tts.api_key:
                 raise ValueError("Configura FISH_AUDIO_API_KEY en el .env local antes de regenerar.")
+            if isinstance(self.tts, Qwen3TTSLocalProvider):
+                self.tts.validate_configuration()
             duration = max(15, int(idea.get("duracion_objetivo") or 45))
             package = build_package(job, idea, generate_narration(
                 str(idea.get("idea") or idea.get("titulo") or ""),

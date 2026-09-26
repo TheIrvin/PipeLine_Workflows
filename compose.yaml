@@ -74,6 +74,26 @@ services:
       retries: 5
       start_period: 30s
 
+  qwen-tts-worker:
+    build:
+      context: .
+      dockerfile: services/production/QwenTTS.Dockerfile
+    container_name: pipeline-qwen-tts
+    restart: unless-stopped
+    environment:
+      HF_HOME: /app/data/models/qwen3-tts-huggingface
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      PYTHONUNBUFFERED: "1"
+      QWEN_TTS_MODEL: ${QWEN_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-0.6B-Base}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8092/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   production-worker:
     build:
       context: .
@@ -85,13 +105,19 @@ services:
         condition: service_healthy
       subtitle-worker:
         condition: service_healthy
+      qwen-tts-worker:
+        condition: service_healthy
     environment:
       IDEA_DB_PATH: /app/data/ideas/ideas.db
       PIPELINE_DATA_PATH: /app/data
       PIPELINE_API_PORT: "8091"
       CONTENT_BUFFER_MIN: ${CONTENT_BUFFER_MIN:-7}
       CONTENT_BUFFER_TARGET: ${CONTENT_BUFFER_TARGET:-14}
-      TTS_PROVIDER: ${TTS_PROVIDER:-fish-audio}
+      TTS_PROVIDER: ${TTS_PROVIDER:-qwen3-tts-local}
+      QWEN_TTS_URL: http://qwen-tts-worker:8092
+      QWEN_TTS_MODEL: ${QWEN_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-0.6B-Base}
+      QWEN_TTS_REFERENCE_AUDIO: /app/data/models/voice-reference/Audio_Ejemplo.mp3
+      QWEN_TTS_REFERENCE_TEXT_FILE: /app/data/models/voice-reference/Audio_Ejemplo.txt
       FISH_AUDIO_API_KEY: ${FISH_AUDIO_API_KEY:-}
       FISH_AUDIO_REFERENCE_ID: ${FISH_AUDIO_REFERENCE_ID:-1f7fb4bc1697479aab869ff685bfa644}
       FISH_AUDIO_MODEL: ${FISH_AUDIO_MODEL:-s2.1-pro-free}
