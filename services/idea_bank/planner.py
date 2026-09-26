@@ -27,8 +27,8 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
         "hook": visible_beats[0], "result": visible_beats[-2] if len(visible_beats) > 2 else visible_beats[-1],
         "cta": visible_beats[-1],
         "creation_name": "Ecos del destino",
-        "ability": "Manipulación táctica de una habilidad de Stand, limitada por alcance y concentración.",
-        "weakness": "La habilidad exige concentración y pierde eficacia cuando el usuario queda distraído.",
+        "ability": visible_beats[1] if len(visible_beats) > 1 else summary or title,
+        "weakness": visible_beats[-2] if len(visible_beats) > 2 else summary or title,
         "stats": {"poder": "A", "velocidad": "B", "alcance": "C", "durabilidad": "B", "precisión": "A", "potencial": "B"},
     }
     script = {"content_id": job["job_id"], "visible_text": script_text, "tts_text": tts_text,
@@ -36,11 +36,16 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
               "narration_prompt": narration.get("editorial_prompt"),
               "language": "es", "duration_estimated": target,
               "duration_target": target, "special_pronunciations": []}
+    beat_groups = []
+    for index in range(4):
+        start = round(index * len(visible_beats) / 4)
+        end = round((index + 1) * len(visible_beats) / 4)
+        beat_groups.append(" ".join(visible_beats[start:end]))
     descriptions = [
-        f"Presentación visual del dilema: {title}",
-        f"Mostrar el concepto y el enfoque: {concept['angle']}",
-        f"Visualizar el coste y la debilidad: {concept['weakness']}",
-        f"Cierre con el resultado y llamada a la acción: {concept['cta']}",
+        f"Gancho y premisa: {beat_groups[0]}",
+        f"Mecánica y desarrollo: {beat_groups[1]}",
+        f"Hipótesis y límite: {beat_groups[2]}",
+        f"Consecuencia y pregunta final: {beat_groups[3]}",
     ]
     base, remainder = divmod(target, len(descriptions))
     scene_rows = [{"scene_id": f"{job['job_id']}-SCENE-{i+1:02d}", "order": i+1,
@@ -55,7 +60,7 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
         "camera": "Composición vertical, plano medio y contrapicado suave; cambios de encuadre entre escenas.",
         "style": "Ilustración anime original, alto contraste, líneas dinámicas y acabado cinematográfico.",
         "aspect_ratio": "9:16",
-        "continuity": "Mantener la misma silueta, paleta, ambiente y dirección de luz en las tres entregas.",
+        "continuity": "Mantener la misma silueta, paleta, ambiente y dirección de luz en todas las escenas.",
     }
     per_scene = []
     for index, scene in enumerate(scene_rows):
