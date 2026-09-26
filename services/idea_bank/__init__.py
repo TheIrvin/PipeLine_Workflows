@@ -1,0 +1,1 @@
+"""Idea bank domain services."""

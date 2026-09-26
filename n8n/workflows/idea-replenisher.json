@@ -1,0 +1,28 @@
+{
+  "id": "6ad043c8-7bf6-4cb8-acdd-300dcae7ad27",
+  "name": "Idea Bank - Replenisher (Mock)",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 1}]}},
+      "id": "eea7622a-55cb-4ce1-9c8b-31e447b08414",
+      "name": "Cada hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {"method": "POST", "url": "http://idea-bank-api:8090/api/ideas/replenish", "options": {}},
+      "id": "a8685b70-90d0-4dc7-985e-58bd553a192b",
+      "name": "Rellenar pendientes (mock)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    }
+  ],
+  "connections": {"Cada hora": {"main": [[{"node": "Rellenar pendientes (mock)", "type": "main", "index": 0}]]}},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "7743754b-3c5c-4c05-9a73-fcb39cde2e90",
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": []
+}

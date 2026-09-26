@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banco local de ideas</title>
+  <style>
+    :root { color-scheme: light dark; font: 15px/1.45 system-ui, sans-serif; }
+    body { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    button { cursor:pointer; padding:.55rem .8rem; border-radius:.5rem; border:1px solid #888; }
+    table { width:100%; border-collapse:collapse; margin-top:1rem; }
+    th,td { text-align:left; padding:.65rem .5rem; border-bottom:1px solid #8886; vertical-align:top; }
+    th { position:sticky; top:0; background:Canvas; }
+    .actions { white-space:nowrap; }
+    .muted { opacity:.75; }
+    #message { min-height:1.5em; }
+    @media(max-width:750px){ table,tbody,tr,td {display:block} thead{display:none} tr{padding:.6rem 0;border-bottom:1px solid #8886} td{border:0;padding:.25rem} td::before{content:attr(data-label) ': ';font-weight:600} }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Banco local de ideas</h1><p id="summary" class="muted">Cargando…</p></div>
+    <div><button id="generate">Generar lote mock</button> <button id="refresh">Actualizar</button></div>
+  </header>
+  <p id="message" role="status" aria-live="polite"></p>
+  <table><thead><tr><th>ID</th><th>Idea</th><th>Tipo</th><th>Duración</th><th>Prioridad</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="ideas"></tbody></table>
+<script>
+const $ = (selector) => document.querySelector(selector);
+const message = (text) => { $('#message').textContent = text; };
+async function call(path, options = {}) {
+  const response = await fetch(path, { headers: {'Content-Type':'application/json'}, ...options });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+function cell(row, label, value) {
+  const td = document.createElement('td'); td.dataset.label = label; td.textContent = value ?? ''; row.appendChild(td); return td;
+}
+async function refresh() {
+  const [data, count] = await Promise.all([call('/api/ideas'), call('/api/ideas/pending-count')]);
+  const tbody = $('#ideas'); tbody.replaceChildren();
+  for (const idea of data.ideas) {
+    const tr = document.createElement('tr');
+    cell(tr,'ID',idea.id); cell(tr,'Idea',idea.idea); cell(tr,'Tipo',idea.tipo);
+    cell(tr,'Duración',`${idea.duracion_objetivo}s`); cell(tr,'Prioridad',idea.prioridad); cell(tr,'Estado',idea.estado);
+    const actions = cell(tr,'Acción',''); actions.className = 'actions';
+    if (idea.estado === 'PENDIENTE') {
+      const approve = document.createElement('button'); approve.textContent = 'Aprobar';
+      approve.onclick = () => act(`/api/ideas/${idea.id}/approve`, 'Marcada como APROBADA; n8n creará el job.');
+      const reject = document.createElement('button'); reject.textContent = 'Rechazar'; reject.style.marginLeft='.4rem';
+      reject.onclick = () => act(`/api/ideas/${idea.id}/reject`, 'Idea rechazada.');
+      actions.append(approve,reject);
+    } else if (idea.job_id) actions.textContent = idea.job_id;
+    tr.appendChild(actions); tbody.appendChild(tr);
+  }
+  $('#summary').textContent = `${count.count} pendientes (mínimo ${count.minimum}) · ${data.ideas.length} ideas en total`;
+}
+async function act(path, success) {
+  try { await call(path,{method:'POST',body:'{}'}); message(success); await refresh(); }
+  catch (error) { message(`Error: ${error.message}`); }
+}
+$('#generate').onclick = async () => { try { const r=await call('/api/ideas/replenish',{method:'POST',body:'{}'}); message(`Generadas ${r.created} ideas mock; ${r.pending} pendientes.`); await refresh(); } catch(e) {message(`Error: ${e.message}`);} };
+$('#refresh').onclick = () => refresh().catch(e => message(`Error: ${e.message}`));
+refresh().catch(e => message(`Error: ${e.message}`));
+setInterval(() => refresh().catch(() => {}), 15000);
+</script>
+</body>
+</html>

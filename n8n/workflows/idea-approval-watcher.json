@@ -1,0 +1,28 @@
+{
+  "id": "d1f85f3f-948d-4f60-9b8f-6524b0dd9521",
+  "name": "Idea Bank - Approval Watcher",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 1}]}},
+      "id": "4a2f425a-2f48-4cf0-8a15-a72f7c38b41f",
+      "name": "Cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {"method": "POST", "url": "http://idea-bank-api:8090/api/approvals/process", "options": {}},
+      "id": "55ea0f20-1f3b-4738-b9da-e8d3b4826b01",
+      "name": "Procesar aprobaciones",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    }
+  ],
+  "connections": {"Cada minuto": {"main": [[{"node": "Procesar aprobaciones", "type": "main", "index": 0}]]}},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "4e58127c-a6b5-4637-8fa5-f1fd1dc7d114",
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": []
+}

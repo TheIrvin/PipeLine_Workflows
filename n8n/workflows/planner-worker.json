@@ -1,0 +1,68 @@
+{
+  "name": "V3 — Planificador local de contenido",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "5a0bd63f-5cbb-4dad-9e27-e1347306c5d7",
+      "name": "Cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://idea-bank-api:8090/api/planner/process",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"limit\": 20 }",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f1fd1b9b-c62f-4bc6-88fb-1bfad9e5e099",
+      "name": "Planificar trabajos aprobados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        40,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Cada minuto": {
+      "main": [
+        [
+          {
+            "node": "Planificar trabajos aprobados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b3dc09ea-49b3-46a2-8d20-a908409119ce",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "id": "8c9c2dc8-cdb7-42cc-a5ea-7f8f267313db"
+}

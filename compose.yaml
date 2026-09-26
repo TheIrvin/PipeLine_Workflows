@@ -1,0 +1,53 @@
+name: pipeline_workflows
+
+services:
+  idea-bank-api:
+    build:
+      context: .
+      dockerfile: services/idea_bank/Dockerfile
+    container_name: pipeline-idea-bank
+    restart: unless-stopped
+    environment:
+      IDEA_DB_PATH: /app/data/ideas/ideas.db
+      IDEA_API_PORT: "8090"
+      IDEA_MIN_PENDING: ${IDEA_MIN_PENDING:-30}
+      IDEA_BATCH_SIZE: ${IDEA_BATCH_SIZE:-30}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:${IDEA_API_PORT:-8090}:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION}
+    container_name: pipeline-n8n
+    restart: unless-stopped
+    depends_on:
+      idea-bank-api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Set N8N_ENCRYPTION_KEY in .env}
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      N8N_EDITOR_BASE_URL: http://localhost:5678/
+      WEBHOOK_URL: http://localhost:5678/
+      N8N_SECURE_COOKIE: "false"
+      TZ: ${TZ:-America/Guayaquil}
+      GENERIC_TIMEZONE: ${TZ:-America/Guayaquil}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/opt/pipeline-workflows:ro
+    init: true
+
+volumes:
+  n8n_data:
+    name: pipeline_workflows_n8n_data
+

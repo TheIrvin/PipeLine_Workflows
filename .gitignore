@@ -1,0 +1,14 @@
+.env
+backups/*
+!backups/.gitkeep
+logs/*
+!logs/.gitkeep
+data/*
+!data/.gitkeep
+.DS_Store
+Thumbs.db
+.idea*
+__pycache__/
+*.py[cod]
+*.sqlite
+*.sqlite3
