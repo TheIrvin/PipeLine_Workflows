@@ -7,6 +7,7 @@ Base local del pipeline descrito en los prompts. n8n, el banco de ideas y el wor
 - WSL2 con Ubuntu.
 - Docker Desktop iniciado y la integración WSL de Ubuntu activa.
 - Docker Compose v2 disponible (`docker compose version`).
+- Git instalado para descargar también el submódulo del editor de subtítulos.
 
 ## Rutas
 
@@ -17,17 +18,26 @@ Mantén el proyecto en el filesystem de Ubuntu (no en `/mnt/c`) para evitar prob
 
 ## Iniciar y detener
 
+Clona el repositorio incluyendo el editor de subtítulos, o inicializa el submódulo si ya tenías el proyecto:
+
+```bash
+git clone --recurse-submodules https://github.com/TheIrvin/PipeLine_Workflows.git
+# En una copia ya existente:
+git submodule update --init --recursive
+```
+
 Desde Ubuntu:
 
 ```bash
 cd ~/PipeLine_Workflows
-docker compose up -d
+docker compose up -d --build
 docker compose ps
 ```
 
 - n8n: <http://localhost:5678>
 - Banco y panel de ideas local: <http://localhost:8090>
 - Worker local de producción: <http://localhost:8091/healthz>
+- Editor/subtitulador local: servicio interno Docker, sin puerto público.
 
 ```bash
 docker compose stop       # detener sin borrar datos
@@ -81,4 +91,4 @@ El planificador produce `plan.json`, `script.json`, `scenes.json` y `media_promp
 
 ## Pipeline local V4–V9
 
-El worker de producción usa imágenes mock, espeak-ng offline, FFmpeg, subtítulos que conservan el texto aprobado, metadata por plataforma, QA y buffer (mínimo 7, objetivo 14). No se conecta a Gemini, Google Cloud ni redes sociales. Publicar se limita a un dry-run explícito. Consulta [START.md](START.md), [STOP.md](STOP.md), [RECOVERY.md](RECOVERY.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md) y [docs/v4-v9-local-production.md](docs/v4-v9-local-production.md).
+El worker de producción usa imágenes mock, espeak-ng offline, FFmpeg y el backend del editor de subtítulos del submódulo, conservando el texto aprobado y generando timings con Whisper en CPU. La primera transcripción descargará el modelo Whisper base y lo guardará localmente en `data/models`; requiere Internet esa primera vez. Después sigue funcionando en local. También genera metadata por plataforma, QA y buffer (mínimo 7, objetivo 14). No se conecta a Gemini, Google Cloud ni redes sociales. Publicar se limita a un dry-run explícito. Consulta [START.md](START.md), [STOP.md](STOP.md), [RECOVERY.md](RECOVERY.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md) y [docs/v4-v9-local-production.md](docs/v4-v9-local-production.md).

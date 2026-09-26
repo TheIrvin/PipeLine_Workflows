@@ -29,7 +29,8 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
     def do_GET(self) -> None:
         if self.path == "/healthz":
-            self._send(200, {"status": "ok", "providers": {"media": "mock", "tts": "espeak-ng", "subtitles": "local"}})
+            subtitle_provider = "existing-subtitle-backend" if os.environ.get("SUBTITLE_WORKER_URL", "").strip() else "local-exact-script"
+            self._send(200, {"status": "ok", "providers": {"media": "mock", "tts": "espeak-ng", "subtitles": subtitle_provider}})
             return
         match = re.fullmatch(r"/api/jobs/(CONTENT-[0-9]{6})", self.path)
         if match:

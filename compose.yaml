@@ -23,6 +23,26 @@ services:
       retries: 3
       start_period: 5s
 
+  subtitle-worker:
+    build:
+      context: .
+      dockerfile: services/production/Subtitle.Dockerfile
+    container_name: pipeline-subtitle-worker
+    restart: unless-stopped
+    environment:
+      SUBTITLE_APP_DATA_DIR: /app/data/subtitle-worker
+      HF_HOME: /app/data/models/huggingface
+      XDG_CACHE_HOME: /app/data/models/cache
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   production-worker:
     build:
       context: .
@@ -32,6 +52,8 @@ services:
     depends_on:
       idea-bank-api:
         condition: service_healthy
+      subtitle-worker:
+        condition: service_healthy
     environment:
       IDEA_DB_PATH: /app/data/ideas/ideas.db
       PIPELINE_DATA_PATH: /app/data
@@ -40,8 +62,8 @@ services:
       CONTENT_BUFFER_TARGET: ${CONTENT_BUFFER_TARGET:-14}
       TTS_VOICE: ${TTS_VOICE:-es-la}
       TTS_SPEED: ${TTS_SPEED:-170}
-      SUBTITLE_WORKER_URL: ${SUBTITLE_WORKER_URL:-}
-      SUBTITLE_EXPORT_DIR: ${SUBTITLE_EXPORT_DIR:-}
+      SUBTITLE_WORKER_URL: http://subtitle-worker:8000
+      SUBTITLE_EXPORT_DIR: /app/data/subtitle-worker/exports
     volumes:
       - ./data:/app/data
     ports:

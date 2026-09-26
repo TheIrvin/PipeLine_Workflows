@@ -95,14 +95,33 @@ class ExistingSubtitleBackendAdapter:
         project = json.loads(self._request("/api/upload", body, f"multipart/form-data; boundary={boundary}"))
         project_id = project["project_id"]
         manual = json.dumps({"text_es": script["visible_text"], "text_en": ""}, ensure_ascii=False).encode()
-        self._request(f"/api/manual-subtitles/{project_id}", manual, "application/json", "POST")
+        manual_result = json.loads(self._request(f"/api/manual-subtitles/{project_id}", manual, "application/json", "POST"))
         export = json.dumps({"name": video.stem, "quality": "baja", "output_dir": self.export_dir}).encode()
         self._request(f"/api/export/{project_id}", export, "application/json", "POST")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(self._request(f"/api/download/{project_id}"))
         if output.stat().st_size < 1024:
             raise RuntimeError("El backend de subtítulos no devolvió un MP4 válido.")
-        return {"subtitle_path": None, "video_path": str(output), "provider": "existing-subtitle-backend", "project_id": project_id}
+
+        # Keep a local SRT sidecar for pipeline QA and downstream review.
+        def timestamp(seconds: float) -> str:
+            milliseconds = max(0, round(float(seconds) * 1000))
+            hours, milliseconds = divmod(milliseconds, 3_600_000)
+            minutes, milliseconds = divmod(milliseconds, 60_000)
+            secs, milliseconds = divmod(milliseconds, 1000)
+            return f"{hours:02d}:{minutes:02d}:{secs:02d},{milliseconds:03d}"
+        subtitle_dir.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for index, block in enumerate(manual_result.get("blocks", []), 1):
+            text = str(block.get("text_es", "")).strip()
+            if not text:
+                continue
+            lines.extend([str(index), f"{timestamp(block.get('start', 0))} --> {timestamp(block.get('end', 0))}", text, ""])
+        if not lines:
+            raise RuntimeError("El backend no devolvió bloques de subtítulos para QA.")
+        srt = subtitle_dir / "captions.es.srt"
+        srt.write_text(chr(10).join(lines), encoding="utf-8")
+        return {"subtitle_path": str(srt), "video_path": str(output), "provider": "existing-subtitle-backend", "project_id": project_id}
 
 
 class MockPlatformPublisher:

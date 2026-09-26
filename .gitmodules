@@ -1,0 +1,3 @@
+[submodule "integrations/subtitle-editor"]
+	path = integrations/subtitle-editor
+	url = https://github.com/TheIrvin/Subtitulador-de-videos-en-Espanol-e-Ingles-9-16.git
