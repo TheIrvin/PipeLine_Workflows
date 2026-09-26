@@ -1,14 +1,1 @@
-FROM python:3.12-slim
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-COPY integrations/subtitle-editor/backend /app/backend
-RUN python -m pip install --no-cache-dir \
-    fastapi==0.115.6 \
-    uvicorn==0.34.0 \
-    python-multipart==0.0.20 \
-    faster-whisper==1.1.1
-RUN mkdir -p /app/data && useradd --create-home --uid 1000 worker && chown -R worker:worker /app
-USER 1000:1000
-EXPOSE 8000
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+FROM python:3.12-slim\nENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1\nRUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*\nWORKDIR /app\nCOPY integrations/subtitle-editor/backend /app/backend\nRUN python -m pip install --no-cache-dir \\n    fastapi==0.115.6 \\n    uvicorn==0.34.0 \\n    python-multipart==0.0.20 \\n    requests==2.32.5 \\n    faster-whisper==1.1.1\nRUN mkdir -p /app/data && useradd --create-home --uid 1000 worker && chown -R worker:worker /app\nUSER 1000:1000\nEXPOSE 8000\nCMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]\n\n
