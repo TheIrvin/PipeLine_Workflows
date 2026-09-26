@@ -115,55 +115,108 @@ def generate_narration(title: str, summary: str, duration: int = 45, category: s
     subject = (title + " " + summary).lower()
     category_key = (category or "").casefold()
     if any(term in subject for term in ("evolucionaría", "evolucion", "requiem")) or "evoluciones" in category_key:
-        pattern = ("HIPÓTESIS DE EVOLUCIÓN: plantea el cambio como teoría; conserva la mecánica central de la habilidad "
-                   "y amplíala solo un paso; muestra dos consecuencias concretas para proteger al personaje de la idea; "
-                   "define un límite que mantenga tensión; cierra con una pregunta. No inventes poderes desconectados.")
+        pattern = "HIPÓTESIS DE EVOLUCIÓN"
+        hook_guide = ("Abre con la consecuencia más inquietante o potente de esa evolución, o con la regla actual "
+                      "que cambiaría; identifica enseguida que se trata de una teoría. No uses una pregunta genérica.")
+        story_guide = ("Conserva la mecánica canónica; propón una sola ampliación plausible. Orden: regla actual, "
+                       "cambio hipotético, dos consecuencias visibles, coste o límite que mantenga tensión.")
+        ending_guide = ("Pregunta qué consecuencia de la teoría sí encaja con las reglas conocidas o qué límite "
+                        "la volvería demasiado poderosa; invita a justificarlo con una mecánica concreta.")
     elif "fusion" in category_key or any(term in subject for term in ("fusion", "combinar", "mezclar")):
-        pattern = ("FUSIÓN: presenta las dos habilidades; explica la sinergia concreta; muestra una jugada paso a paso; "
-                   "añade un coste o incompatibilidad; explica cómo cambia el resultado; pregunta final.")
+        pattern = "FUSIÓN DE HABILIDADES"
+        hook_guide = ("Presenta la combinación como una jugada inesperada o como un problema que ninguna habilidad "
+                      "resolvería por sí sola; menciona ambas habilidades con claridad.")
+        story_guide = ("Explica qué aporta cada habilidad, cómo se encadenan en una situación concreta y qué "
+                       "incompatibilidad, alcance o coste puede frustrar la combinación.")
+        ending_guide = ("Pregunta cuál sería el uso más peligroso o qué incompatibilidad decidiría el resultado; "
+                        "pide una razón basada en las reglas de ambas habilidades.")
     elif "enfrentamiento" in category_key or any(term in subject for term in (" versus ", "compar", "mejor que", "duelo", "ganaría", "ventaja")):
-        pattern = ("DUELO: plantea la condición para ganar; explica la ventaja clave de cada rival; "
-                   "muestra una respuesta táctica de cada uno; decide qué factor inclina la balanza; "
-                   "da un veredicto condicionado y pregunta final.")
+        pattern = "ENFRENTAMIENTO CON VEREDICTO CONDICIONAL"
+        hook_guide = ("Abre con la condición concreta que podría decidir el duelo o con una ventaja que parece "
+                      "definitiva pero tiene respuesta; nombra a los dos rivales pronto.")
+        story_guide = ("Compara una ventaja real de cada rival, muestra cómo respondería el otro y aterriza el "
+                       "análisis en un escenario o condición de victoria; evita declarar un ganador absoluto sin base.")
+        ending_guide = ("Pregunta qué condición cambiaría el ganador o qué respuesta táctica pesa más; permite "
+                        "defender cualquiera de las posturas con argumentos del enfrentamiento.")
     elif "what if" in category_key or any(term in subject for term in ("qué habría pasado", "qué ocurriría", "what if", "y si ")):
-        pattern = ("LÍNEA ALTERNATIVA: abre con el cambio puntual; indica qué sucede distinto primero; "
-                   "sigue dos consecuencias en cadena; explica quién gana o pierde con el cambio; "
-                   "termina con el efecto más sorprendente y pregunta final.")
+        pattern = "LÍNEA TEMPORAL ALTERNATIVA"
+        hook_guide = ("Nombra la decisión o evento que cambia y revela de inmediato qué resultado conocido "
+                      "quedaría en riesgo; no empieces con una introducción de contexto.")
+        story_guide = ("Sigue una cadena causal de dos o tres pasos: cambio inicial, reacción directa y "
+                       "consecuencia posterior. No presentes como canon lo que solo es una posibilidad.")
+        ending_guide = ("Pregunta cuál consecuencia de la cadena creen más probable o qué evento posterior "
+                        "cambiaría por completo; busca hipótesis rivales que puedan debatirse.")
     elif any(term in subject for term in ("origen", "historia", "quién es", "por qué")):
-        pattern = ("REVELACIÓN/HISTORIA: abre con el dato intrigante; ubica brevemente el contexto; "
-                   "avanza causa y efecto; revela el giro importante; explica qué cambia; pregunta final.")
+        pattern = "REVELACIÓN E HISTORIA"
+        hook_guide = ("Empieza por una pista, contradicción o detalle cuyo significado cambie al conocer "
+                      "la historia; promete una explicación que el contenido sí pueda entregar.")
+        story_guide = ("Da solo el contexto necesario, conecta los hechos por causa y efecto y reserva el "
+                       "dato que reinterpreta la pista para el tramo medio o final; no inventes canon.")
+        ending_guide = ("Pregunta qué pista cambia más la interpretación o qué explicación alternativa "
+                        "encaja mejor con los datos narrados; no pidas opiniones vacías.")
     elif "poderes hipotéticos" in category_key:
-        pattern = ("PODER HIPOTÉTICO: define la regla en una línea; demuestra dos usos fuera de lo obvio; "
-                   "explica el límite que evita que sea invencible; muestra el mejor contraataque; pregunta final.")
+        pattern = "PODER HIPOTÉTICO Y CONTRAJUEGO"
+        hook_guide = ("Abre con una aplicación inesperada que se desprenda de la regla o con el contraataque "
+                      "que impediría que el poder fuera invencible.")
+        story_guide = ("Define la regla sin rodeos, ilustra dos aplicaciones concretas, establece su límite y "
+                       "muestra cómo alguien podría explotarlo o contrarrestarlo.")
+        ending_guide = ("Pregunta qué uso o contraataque sería más efectivo, y por qué; la respuesta debe "
+                        "depender de la regla y el límite explicados.")
     elif "conceptos originales" in category_key:
-        pattern = ("CONCEPTO ORIGINAL: revela primero la regla extraña; muestra un uso ingenioso; "
-                   "explica el coste que obliga a pensar; crea un dilema en una escena hipotética; "
-                   "cierra con una pregunta sobre cómo lo usaría la audiencia.")
+        pattern = "CONCEPTO ORIGINAL CON DILEMA"
+        hook_guide = ("Lanza una regla rara con una consecuencia clara o plantea el dilema que esa regla "
+                      "obligaría a resolver; evita describir primero el concepto de forma enciclopédica.")
+        story_guide = ("Explica la regla, demuestra un uso ingenioso, deja claro el coste y construye un dilema "
+                       "breve donde usar el poder también traiga una consecuencia.")
+        ending_guide = ("Pregunta qué decisión tomarían ante ese dilema o qué uso alternativo encontraron; "
+                        "la pregunta debe apoyarse en el coste descrito.")
     elif any(term in subject for term in ("stand", "habilidad", "poder", "técnica", "capacidad")):
-        pattern = ("EXPLICACIÓN DE MECÁNICA: pregunta gancho; regla central; qué toca o afecta; "
-                   "ejemplos concretos; límite confirmado; aplicación táctica; consecuencia; pregunta final.")
+        pattern = "MECÁNICA, APLICACIÓN Y LÍMITE"
+        hook_guide = ("Abre con una consecuencia concreta, un límite que sorprenda o una aplicación táctica "
+                      "que el público pueda imaginar. Evita '¿Qué pasaría si...?' como plantilla automática.")
+        story_guide = ("Explica la regla central, qué afecta, da ejemplos visuales distintos, aclara el límite "
+                       "conocido y termina el desarrollo con una aplicación o consecuencia táctica.")
+        ending_guide = ("Pregunta qué aplicación sería más fuerte o qué límite ofrece el mejor contraataque; "
+                        "usa un detalle de la habilidad para provocar argumentos concretos.")
     else:
-        pattern = ("PATRÓN A MEDIDA: elige el recorrido que más curiosidad genere para esta idea concreta; "
-                   "haz una progresión de dato, ejemplo, giro y consecuencia, y termina con una pregunta.")
+        pattern = "NARRATIVA A MEDIDA"
+        hook_guide = ("Encuentra el dato, contradicción, apuesta o consecuencia más concreta de la idea y "
+                      "empieza ahí; evita una pregunta intercambiable con cualquier tema.")
+        story_guide = ("Haz una progresión propia: contexto mínimo, mecanismo o causa, ejemplo, giro y "
+                       "consecuencia. Cada beat debe añadir información nueva.")
+        ending_guide = ("Formula una pregunta sobre la consecuencia o explicación central que admita "
+                        "hipótesis distintas y argumentos apoyados por el guion.")
     if "crazy diamond" in subject and "josuke" in subject:
-        pattern += (" DIRECCIÓN ESPECÍFICA: centra esta teoría en que Crazy Diamond pudiera restaurar las heridas "
-                    "de Josuke; no inventes escudos, absorción de energía ni poderes mentales. Enfatiza que ayudaría "
-                    "a resistir, pero no lo haría invencible.")
+        hook_guide = ("Presenta como teoría que la evolución podría proteger a Josuke reparando sus propias heridas; "
+                      "la sorpresa es que le permitiría resistir, no que lo volvería invencible.")
+        story_guide = ("Desarrolla solo esta hipótesis: Crazy Diamond podría restaurar las heridas de Josuke y "
+                       "ayudarlo a resistir durante una pelea. Distingue recuperarse de ganar el combate y explica "
+                       "que eso no lo haría invencible. No inventes efectos visuales, proceso de curación, cifras, "
+                       "tiempos, límites ni habilidades nuevas; no afirmes que esto sea canon.")
+        ending_guide = ("Pregunta qué límite haría plausible esta teoría sin volver invencible a Josuke; "
+                        "invita a discutir la regla de restauración, no a dar una opinión genérica.")
     prompt = f"""Eres guionista de videos cortos interesantes y directos en español latinoamericano.
 Crea un guion ORIGINAL para esta idea; el ejemplo de referencia solo aporta ritmo corto, claridad y progresión.
 Idea: {title}
 Contexto disponible: {summary or 'No se proporcionó más contexto.'}
 Patrón editorial seleccionado para esta idea: {pattern}
-Duración: {duration} segundos; entre 65 y 95 palabras.
+Guía del gancho (primer beat): {hook_guide}
+Recorrido del desarrollo: {story_guide}
+Guía del cierre (último beat): {ending_guide}
+Duración: {duration} segundos; apunta a unas 80 palabras.
 Devuelve solo JSON con esta forma:
 {{"beats":[{{"text":"frase","delivery":"curious|narrator|emphatic"}}]}}
 Condiciones:
-- Entre 7 y 10 beats; una idea breve por beat y 65–95 palabras en total.
-- Primer beat: gancho específico. Último beat: pregunta corta. No uses signos de pregunta en los beats intermedios.
-- Mantén cada beat entre 7 y 14 palabras y evita repetir la misma condición o idea.
-- Sigue el patrón seleccionado y crea un recorrido propio para esta idea.
+- Escribe exactamente 8 beats, con 8–13 palabras cada uno (72–96 palabras en total). Busca unas 80 palabras para que el guion sostenga la duración; no acortes omitiendo los pasos del patrón.
+- El primer beat debe funcionar en los primeros 3–5 segundos: ve al hecho, rareza, riesgo, contradicción o resultado que hace única esta idea. Entrega enseguida la promesa del título; nada de saludos, contexto largo ni frases como “hoy vamos a hablar de”.
+- Usa el ángulo indicado como guía, no copies una fórmula literal. Varía el tipo de gancho entre ideas; no empieces todos los guiones con “¿Qué pasaría si...?”, “¿Sabías que...?” ni con el título reformulado.
+- El último beat debe ser una pregunta breve y específica que abra una hipótesis, objeción, condición o contraataque relevante. Debe dar motivos para responderse entre espectadores; no uses “¿Qué opinas?”, “¿Estás de acuerdo?” ni “déjalo en comentarios”. Sigue la guía de cierre de este patrón.
+- No uses signos de pregunta en los beats intermedios.
+- Mantén cada beat entre 8 y 13 palabras y evita repetir la misma condición o idea.
+- Sigue la guía propia de este patrón; cada idea debe tener gancho, progresión y pregunta final nacidos de su mecánica y detalles, sin reutilizar un molde intercambiable.
 - El título y el contexto son la única base factual. No agregues escenas, lugares, poderes ni consecuencias como si fueran hechos confirmados.
-- Si es una evolución/hipótesis, marca una sola vez que es una teoría. Amplía la mecánica original solo un paso.
+- Si es una evolución/hipótesis, marca una sola vez que es teoría. Presenta sus efectos en condicional y amplía la mecánica original solo un paso.
+- No inventes cifras, duraciones, escenas ni límites específicos ausentes del contexto; una posibilidad no se afirma como hecho canónico.
 - No agregues habilidades mentales/espirituales ni energía universal, salvo que la idea lo proponga explícitamente.
 - Usa palabras cotidianas y ejemplos visualizables; evita metáforas abstractas como “distancia entre corazones”.
 - Cada beat aporta un dato, ejemplo o consecuencia diferente; evita relleno y repetir ideas.
@@ -173,31 +226,67 @@ Condiciones:
 - Para Qwen 3, responde sin razonamiento interno y entrega solo el JSON.
 """
     schema = {"type": "object", "properties": {"beats": {
-        "type": "array", "minItems": 7, "maxItems": 10,
+        "type": "array", "minItems": 8, "maxItems": 8,
         "items": {"type": "object", "properties": {
             "text": {"type": "string"}, "delivery": {"type": "string",
                 "enum": ["curious", "narrator", "emphatic"]}},
             "required": ["text", "delivery"], "additionalProperties": False}}},
         "required": ["beats"], "additionalProperties": False}
-    payload = json.dumps({"model": model, "stream": False, "format": schema, "messages": [
-        {"role": "system", "content": "Escribe solo el guion pedido, sin explicar tu razonamiento."},
-        {"role": "user", "content": prompt + "\n/no_think"}],
-        "think": False, "keep_alive": 0, "options": {"temperature": 0.68, "top_p": 0.9, "repeat_penalty": 1.16,
-                                     "num_ctx": 4096, "num_predict": 420}}).encode()
-    request = urllib.request.Request(base + "/api/chat", data=payload,
-                                     headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=240) as response:
-            result = json.loads(response.read().decode())
-        narration = json.loads(result["message"]["content"])
-    except (OSError, urllib.error.URLError, KeyError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"No se pudo generar el guion local con Ollama ({model}): {exc}") from exc
-    beats = narration.get("beats")
-    if not isinstance(beats, list) or not 7 <= len(beats) <= 10:
-        raise ValueError("El escritor local debe producir entre 7 y 10 beats narrativos.")
-    words = sum(len(str(beat.get("text", "")).split()) for beat in beats if isinstance(beat, dict))
-    if not 60 <= words <= 105 or any(not isinstance(beat, dict) or not str(beat.get("text", "")).strip() for beat in beats):
-        raise ValueError(f"Guion local fuera de los límites editoriales ({words} palabras).")
+    narration = None
+    last_issue = ""
+    for attempt in range(2):
+        if attempt == 0:
+            user_prompt = prompt
+        else:
+            user_prompt = (prompt + "\nCORRIGE ESTE BORRADOR: cumple exactamente 8 beats, 8–13 palabras por beat "
+                           "(72–96 palabras total), conserva el patrón, elimina preguntas antes del último beat, "
+                           "no inventes cifras o hechos y termina con una pregunta específica. Reescribe, no expliques. "
+                           f"Problema detectado: {last_issue}\nBorrador anterior: "
+                           + json.dumps(narration, ensure_ascii=False))
+        payload = json.dumps({"model": model, "stream": False, "format": schema, "messages": [
+            {"role": "system", "content": "Escribe solo el guion pedido, sin explicar tu razonamiento."},
+            {"role": "user", "content": user_prompt + "\n/no_think"}],
+            "think": False, "keep_alive": 0, "options": {"temperature": 0.55, "top_p": 0.9, "repeat_penalty": 1.16,
+                                         "num_ctx": 4096, "num_predict": 520}}).encode()
+        request = urllib.request.Request(base + "/api/chat", data=payload,
+                                         headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=240) as response:
+                result = json.loads(response.read().decode())
+            narration = json.loads(result["message"]["content"])
+        except (OSError, urllib.error.URLError, KeyError, json.JSONDecodeError) as exc:
+            if attempt == 0:
+                last_issue = f"respuesta no válida ({exc})"
+                continue
+            raise RuntimeError(f"No se pudo generar el guion local con Ollama ({model}): {exc}") from exc
+        beats = narration.get("beats") if isinstance(narration, dict) else None
+        if not isinstance(beats, list) or len(beats) != 8:
+            last_issue = "el borrador no contiene exactamente 8 beats"
+            continue
+        if any(not isinstance(beat, dict) or not str(beat.get("text", "")).strip() for beat in beats):
+            last_issue = "hay beats vacíos"
+            continue
+        if "¿" not in str(beats[-1]["text"]) or "?" not in str(beats[-1]["text"]):
+            closing_questions = {
+                "HIPÓTESIS DE EVOLUCIÓN": ("¿Qué límite evitaría que reparar heridas volviera invencible a Josuke?"
+                    if "crazy diamond" in subject and "josuke" in subject else "¿Qué límite impediría que esta evolución rompiera las reglas conocidas?"),
+                "FUSIÓN DE HABILIDADES": "¿Qué incompatibilidad frenaría más esta fusión y qué habilidad ganaría?",
+                "ENFRENTAMIENTO CON VEREDICTO CONDICIONAL": "¿Qué condición cambiaría el resultado de este duelo y por qué?",
+                "LÍNEA TEMPORAL ALTERNATIVA": "¿Qué consecuencia de este cambio creen más probable y por qué?",
+                "REVELACIÓN E HISTORIA": "¿Qué pista respalda mejor esta interpretación de la historia?",
+                "PODER HIPOTÉTICO Y CONTRAJUEGO": "¿Qué contraataque sería más efectivo contra este poder y por qué?",
+                "CONCEPTO ORIGINAL CON DILEMA": "¿Qué decisión tomarías sabiendo que usarlo también tiene un coste?",
+                "MECÁNICA, APLICACIÓN Y LÍMITE": "¿Qué aplicación sería más fuerte sin romper este límite?",
+                "NARRATIVA A MEDIDA": "¿Qué explicación alternativa encaja mejor con los datos narrados?",
+            }
+            beats[-1]["text"] = closing_questions[pattern]
+        words = sum(len(str(beat["text"]).split()) for beat in beats)
+        if not 72 <= words <= 96:
+            last_issue = f"el total es de {words} palabras en lugar de 72–96"
+            continue
+        break
+    else:
+        raise ValueError(f"El borrador local no cumplió los límites editoriales tras dos intentos: {last_issue}")
     for beat in beats:
         if beat.get("delivery") not in {"curious", "narrator", "emphatic"}:
             beat["delivery"] = "narrator"

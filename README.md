@@ -87,7 +87,7 @@ El backup detiene servicios brevemente y guarda persistencia de n8n, datos y una
 
 ## Planificador local V3
 
-El planificador produce `plan.json`, `script.json`, `scenes.json` y `media_prompts.json` sin usar cuentas ni servicios externos. Consulta [docs/v3-local-planner.md](docs/v3-local-planner.md).
+El planificador produce `plan.json`, `script.json`, `scenes.json` y `media_prompts.json` sin usar cuentas ni servicios externos. Consulta [docs/v3-local-planner.md](docs/v3-local-planner.md). Las estructuras de gancho, desarrollo y cierre por patrón están en [docs/narrative-prompts.md](docs/narrative-prompts.md).
 
 ## Pipeline local V4–V9
 

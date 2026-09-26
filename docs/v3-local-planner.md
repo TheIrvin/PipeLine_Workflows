@@ -7,7 +7,7 @@ V3 transforma cada trabajo `IDEA_APPROVED` en cuatro documentos locales:
 - `scenes.json`: escenas con orden, duración, tipo, descripción, requisito y estado.
 - `media_prompts.json`: grupos PROMPT_A/B/C con continuidad visual 9:16.
 
-El planificador redacta cada idea con Ollama en local (Qwen 3 4B). Adapta el patrón narrativo al tema —por ejemplo explicación, hipótesis, comparación, misterio o consecuencia— para evitar guiones con la misma estructura. No requiere Google Cloud ni envía los guiones a un proveedor externo. Cada paquete se guarda en `data/jobs/CONTENT-ID/`. Valida guion, CTA, duración, prompts y consistencia de escenas antes de avanzar el trabajo por `SCRIPT_READY` a `MEDIA_QUEUED`.
+El planificador redacta cada idea con Ollama en local (Qwen 3 4B). Adapta el patrón narrativo al tema —por ejemplo explicación, hipótesis, comparación, misterio o consecuencia— para evitar guiones con la misma estructura. No requiere Google Cloud ni envía los guiones a un proveedor externo. La guía de ganchos, desarrollos y cierres para cada patrón está en [docs/narrative-prompts.md](narrative-prompts.md). Cada paquete se guarda en `data/jobs/CONTENT-ID/`. Valida guion, CTA, duración, prompts y consistencia de escenas antes de avanzar el trabajo por `SCRIPT_READY` a `MEDIA_QUEUED`.
 
 La API expone `POST /api/planner/process` y `GET /api/jobs/CONTENT-ID`. El workflow `n8n/workflows/planner-worker.json` solicita el procesamiento cada minuto. Los documentos se regeneran de forma idempotente si se vuelve a pedir el mismo trabajo.
 
