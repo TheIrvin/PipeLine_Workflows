@@ -1,7 +1,9 @@
 """Replaceable local/mock providers for media, TTS, subtitles and publishing."""
 from __future__ import annotations
 import json
+import os
 import re
+import shutil
 import subprocess
 import urllib.error
 import urllib.request
@@ -28,6 +30,89 @@ class MockMediaProvider:
         manifest = {"content_id": content_id, "provider": "mock", "status": "MEDIA_READY", "assets": created}
         (output_dir / "media_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return manifest
+
+
+class ManualMediaProvider:
+    """Imports user-generated per-scene media from a watched inbox."""
+    provider_name = "manual-inbox"
+    video_extensions = (".mp4", ".mov", ".webm", ".mkv")
+    image_extensions = (".png", ".jpg", ".jpeg", ".webp", ".ppm")
+
+    def __init__(self, ffprobe: str = "ffprobe"):
+        self.ffprobe = ffprobe
+
+    def _candidate(self, inbox: Path, scene_id: str) -> Path | None:
+        for ext in self.video_extensions + self.image_extensions:
+            path = inbox / f"{scene_id}{ext}"
+            if path.is_file() and path.stat().st_size > 1024:
+                return path
+        return None
+
+    def readiness(self, scenes: dict, inbox: Path) -> dict:
+        inbox.mkdir(parents=True, exist_ok=True)
+        present, missing = [], []
+        for scene in scenes["scenes"]:
+            source = self._candidate(inbox, scene["scene_id"])
+            if source is None:
+                missing.append({"scene_id": scene["scene_id"], "expected": [
+                    f"{scene['scene_id']}{ext}" for ext in self.video_extensions[:3] + self.image_extensions[:4]]})
+            else:
+                present.append({"scene_id": scene["scene_id"], "path": str(source)})
+        return {"complete": not missing, "present": present, "missing": missing}
+
+    def validate_file(self, source: Path) -> None:
+        if not source.is_file() or source.stat().st_size <= 1024:
+            raise ValueError("El archivo no existe o todavía se está copiando.")
+        probe = subprocess.run([self.ffprobe, "-v", "error", "-show_streams", "-of", "json", str(source)],
+                               capture_output=True, text=True, timeout=30)
+        if probe.returncode:
+            raise ValueError("ffprobe no puede leer el archivo (puede seguir copiándose o estar dañado).")
+        streams = json.loads(probe.stdout).get("streams", [])
+        if not any(row.get("codec_type") == "video" for row in streams):
+            raise ValueError("El archivo no contiene una imagen/video legible.")
+
+    def is_importable(self, scenes: dict, inbox: Path) -> bool:
+        status = self.readiness(scenes, inbox)
+        if not status["complete"]:
+            return False
+        try:
+            for item in status["present"]:
+                self.validate_file(Path(item["path"]))
+            return True
+        except (OSError, ValueError, subprocess.SubprocessError, json.JSONDecodeError):
+            return False
+
+    def import_assets(self, content_id: str, scenes: dict, inbox: Path, asset_root: Path) -> dict:
+        status = self.readiness(scenes, inbox)
+        if not status["complete"]:
+            return {"content_id": content_id, "provider": self.provider_name, "status": "WAITING_MANUAL_ACTION", **status}
+        assets, errors = [], []
+        for scene in scenes["scenes"]:
+            source = self._candidate(inbox, scene["scene_id"])
+            try:
+                if source is None:
+                    raise ValueError("El archivo de escena desapareció de la bandeja de entrada.")
+                self.validate_file(source)
+                suffix = source.suffix.lower()
+                is_video = suffix in self.video_extensions
+                media_type = "video" if is_video else "image"
+                target_dir = asset_root / ("videos" if is_video else "images")
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target = target_dir / f"{scene['scene_id']}{suffix}"
+                temporary = target.with_name(target.name + ".tmp")
+                shutil.copy2(source, temporary)
+                os.replace(temporary, target)
+                assets.append({"scene_id": scene["scene_id"], "path": str(target), "source": str(source),
+                               "type": media_type, "provider": self.provider_name, "status": "READY"})
+            except Exception as exc:
+                errors.append({"scene_id": scene["scene_id"], "file": source.name if source else scene["scene_id"], "error": str(exc)})
+        result = {"content_id": content_id, "provider": self.provider_name,
+                  "status": "MEDIA_READY" if len(assets) == len(scenes["scenes"]) else "WAITING_MANUAL_ACTION",
+                  "assets": assets, "missing": [], "errors": errors}
+        manifest_dir = asset_root / "metadata"
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        (manifest_dir / "media_manifest.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return result
 
 
 class EspeakTTSProvider:

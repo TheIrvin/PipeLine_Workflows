@@ -57,7 +57,26 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
         "aspect_ratio": "9:16",
         "continuity": "Mantener la misma silueta, paleta, ambiente y dirección de luz en las tres entregas.",
     }
-    prompts = {"content_id": job["job_id"], "continuity": continuity, "groups": [
+    per_scene = []
+    for index, scene in enumerate(scene_rows):
+        start = round(index * len(visible_beats) / len(scene_rows))
+        end = round((index + 1) * len(visible_beats) / len(scene_rows))
+        context = " ".join(visible_beats[start:end]) or descriptions[index]
+        image_prompt = (f"{continuity['style']}. {continuity['environment']}. {descriptions[index]}. "
+                        f"Narration beat to illustrate: {context}. {continuity['character']} "
+                        f"{continuity['colors']} {continuity['camera']} Vertical portrait 9:16. "
+                        "One clear focal action, readable silhouette, cinematic depth, leave safe space near top and bottom. "
+                        "Original character and scene; no text, subtitles, logos, watermark, collage, or UI. "
+                        f"Match visual continuity: {continuity['continuity']}")
+        video_prompt = (f"Animate this exact reference image for about 8 seconds. {descriptions[index]}. "
+                        "Preserve the same character design, clothing, props, background, palette, and lighting. "
+                        "Use one restrained cinematic camera move and subtle natural motion that supports the narration; "
+                        "keep the subject recognizable and the composition vertical 9:16. No cuts, new characters, "
+                        "new objects, text, subtitles, logos, watermark, dialogue, or music.")
+        per_scene.append({"scene_id": scene["scene_id"], "clip_target_seconds": min(8, int(scene["duration_target"])),
+                          "narration_context": context, "image_prompt": image_prompt,
+                          "video_prompt": video_prompt, "suggested_filename": f"{scene['scene_id']}.mp4"})
+    prompts = {"content_id": job["job_id"], "continuity": continuity, "manual_scene_prompts": per_scene, "groups": [
         {"prompt_id": "PROMPT_A", "scene_ids": [scene_rows[0]["scene_id"], scene_rows[1]["scene_id"]],
          "prompt": f"{continuity['style']} {continuity['environment']} {descriptions[0]}. Transición visual a: {descriptions[1]}. Vertical 9:16. {continuity['continuity']}"},
         {"prompt_id": "PROMPT_B", "scene_ids": [scene_rows[2]["scene_id"]],
@@ -106,6 +125,20 @@ def save_package(package: dict[str, dict[str, Any]], output_root: str | Path, co
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+    prompts = package.get("media_prompts.json", {})
+    handoff = [f"# Entrega manual de medios — {content_id}", "",
+               "Genera un clip por escena usando la imagen de referencia (image-to-video). Si no puedes animar una escena, puedes entregar una imagen fija con el nombre indicado y extensión .png, .jpg, .jpeg, .webp o .ppm.", "",
+               "## Carpeta de entrega", "", f"`data/assets/{content_id}/inbox/`", "",
+               "Usa el nombre exacto de cada escena. El worker detecta los archivos automáticamente; no comprimas ni renombres después de copiar.", "",
+               "## Prompts por escena", ""]
+    for item in prompts.get("manual_scene_prompts", []):
+        handoff.extend([f"### {item['scene_id']} ({item['clip_target_seconds']} s objetivo)", "",
+                        f"Contexto narrado: {item['narration_context']}", "",
+                        "**Prompt de imagen de referencia**", "", item["image_prompt"], "",
+                        "**Prompt para animar esa imagen**", "", item["video_prompt"], "",
+                        f"**Archivo de video:** `{item['suggested_filename']}`", "",
+                        f"**Archivo de imagen alternativo:** `{item['scene_id']}.png`", ""])
+    (target / "media_prompts.md").write_text("\n".join(handoff), encoding="utf-8")
     return target
 
 def generate_narration(title: str, summary: str, duration: int = 45, category: str | None = None) -> dict[str, Any]:

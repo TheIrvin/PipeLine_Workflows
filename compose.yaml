@@ -111,6 +111,7 @@ services:
       IDEA_DB_PATH: /app/data/ideas/ideas.db
       PIPELINE_DATA_PATH: /app/data
       PIPELINE_API_PORT: "8091"
+      MEDIA_PROVIDER: ${MEDIA_PROVIDER:-manual-inbox}
       CONTENT_BUFFER_MIN: ${CONTENT_BUFFER_MIN:-7}
       CONTENT_BUFFER_TARGET: ${CONTENT_BUFFER_TARGET:-14}
       TTS_PROVIDER: ${TTS_PROVIDER:-qwen3-tts-local}

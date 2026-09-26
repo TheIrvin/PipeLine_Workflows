@@ -31,7 +31,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/healthz":
             subtitle_provider = "existing-subtitle-backend" if os.environ.get("SUBTITLE_WORKER_URL", "").strip() else "local-exact-script"
             self._send(200, {"status": "ok", "providers": {
-                "media": "mock", "tts": os.environ.get("TTS_PROVIDER", "qwen3-tts-local"),
+                "media": PIPELINE.media.provider_name if hasattr(PIPELINE.media, "provider_name") else "mock", "tts": os.environ.get("TTS_PROVIDER", "qwen3-tts-local"),
                 "qwen_tts_reference_configured": (
                     Path(os.environ.get("QWEN_TTS_REFERENCE_AUDIO", "/app/data/models/voice-reference/Audio_Ejemplo.mp3")).is_file()
                     and Path(os.environ.get("QWEN_TTS_REFERENCE_TEXT_FILE", "/app/data/models/voice-reference/Audio_Ejemplo.txt")).is_file()),

@@ -13,7 +13,7 @@ from typing import Any
 from services.idea_bank.planner import build_package, generate_narration, save_package, validate_package
 from services.idea_bank.store import IdeaBank
 from .providers import (EspeakTTSProvider, ExistingSubtitleBackendAdapter, FacebookPublisher, FishAudioTTSProvider,
-                        InstagramPublisher, LocalSubtitleWorker, MockMediaProvider, Qwen3TTSLocalProvider, TikTokPublisher, YouTubePublisher)
+                        InstagramPublisher, LocalSubtitleWorker, ManualMediaProvider, MockMediaProvider, Qwen3TTSLocalProvider, TikTokPublisher, YouTubePublisher)
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -25,7 +25,13 @@ class ProductionPipeline:
         self.jobs_root = self.data_root / "jobs"
         self.assets_root = self.data_root / "assets"
         self.logs_root = self.data_root / "logs"
-        self.media = MockMediaProvider()
+        media_provider = os.environ.get("MEDIA_PROVIDER", "manual-inbox").strip().lower()
+        if media_provider == "manual-inbox":
+            self.media = ManualMediaProvider()
+        elif media_provider == "mock":
+            self.media = MockMediaProvider()
+        else:
+            raise ValueError(f"Proveedor multimedia no reconocido: {media_provider}")
         tts_provider = os.environ.get("TTS_PROVIDER", "qwen3-tts-local").strip().lower()
         if tts_provider == "qwen3-tts-local":
             self.tts = Qwen3TTSLocalProvider(
@@ -137,18 +143,40 @@ class ProductionPipeline:
         accepted = {"MEDIA_QUEUED", "MEDIA_READY", "TTS_READY", "ASSEMBLING", "SUBTITLING",
                     "METADATA_READY", "QA_PENDING", "RETRY_PENDING", "WAITING_PROVIDER", "WAITING_MANUAL_ACTION"}
         if state not in accepted: raise ValueError(f"El trabajo no puede entrar a producción desde {state}")
-        if state in {"RETRY_PENDING", "WAITING_PROVIDER", "WAITING_MANUAL_ACTION"}:
+        if state in {"RETRY_PENDING", "WAITING_PROVIDER"}:
             state = job.get("resume_state") or "MEDIA_QUEUED"
             self.bank.set_job_state(content_id, state)
+        elif state == "WAITING_MANUAL_ACTION":
+            # Keep the persisted waiting state until the user's handoff is complete.
+            state = job.get("resume_state") or "MEDIA_QUEUED"
         asset = self._asset(content_id)
         for folder in ("images", "videos", "audio", "subtitles", "metadata", "masters", "platform_versions"):
             (asset / folder).mkdir(parents=True, exist_ok=True)
         package = self._load_package(content_id)
         try:
+            inbox = asset / "inbox"
+            inbox.mkdir(parents=True, exist_ok=True)
             if state == "MEDIA_QUEUED":
-                manifest = self.media.generate(content_id, package["scenes.json"], asset / "images")
-                self.bank.set_job_state(content_id, "MEDIA_READY")
-                self._log(content_id, "media", "ok", f"{len(manifest['assets'])} assets mock listos.")
+                if isinstance(self.media, ManualMediaProvider):
+                    handoff = self.media.readiness(package["scenes.json"], inbox)
+                    if not handoff["complete"]:
+                        if self._state(content_id) != "WAITING_MANUAL_ACTION":
+                            self.bank.set_job_state(content_id, "WAITING_MANUAL_ACTION")
+                            self._log(content_id, "media", "waiting", f"Entrega manual pendiente: {inbox}")
+                        return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
+                                "inbox": str(inbox), "prompts": str(self.jobs_root / content_id / "media_prompts.md"),
+                                "missing": handoff["missing"]}
+                    manifest = self.media.import_assets(content_id, package["scenes.json"], inbox, asset)
+                    if manifest["status"] != "MEDIA_READY":
+                        return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
+                                "inbox": str(inbox), "prompts": str(self.jobs_root / content_id / "media_prompts.md"),
+                                "missing": manifest.get("missing", []), "errors": manifest.get("errors", [])}
+                    self.bank.set_job_state(content_id, "MEDIA_READY")
+                    self._log(content_id, "media", "ok", f"{len(manifest['assets'])} medios manuales validados e importados.")
+                else:
+                    manifest = self.media.generate(content_id, package["scenes.json"], asset / "images")
+                    self.bank.set_job_state(content_id, "MEDIA_READY")
+                    self._log(content_id, "media", "ok", f"{len(manifest['assets'])} assets mock listos.")
                 state = "MEDIA_READY"
             if state == "MEDIA_READY":
                 self.tts.synthesize(self._tts_text(package["script.json"]), package["script.json"]["language"],
@@ -217,13 +245,28 @@ class ProductionPipeline:
             output.replace(output.with_name(output.name + f".corrupt-{int(time.time())}"))
         scenes = package["scenes.json"]["scenes"]
         inputs = []
-        for scene in scenes:
-            image = asset / "images" / f"{scene['scene_id']}.ppm"
-            inputs += ["-loop", "1", "-framerate", "30", "-t", str(scene["duration_target"]), "-i", str(image)]
+        filters = []
+        for i, scene in enumerate(scenes):
+            scene_id = scene["scene_id"]
+            duration = float(scene["duration_target"])
+            video_dir, image_dir = asset / "videos", asset / "images"
+            video = next((video_dir / f"{scene_id}{ext}" for ext in ManualMediaProvider.video_extensions
+                          if (video_dir / f"{scene_id}{ext}").is_file()), None)
+            image = next((image_dir / f"{scene_id}{ext}" for ext in ManualMediaProvider.image_extensions
+                          if (image_dir / f"{scene_id}{ext}").is_file()), None)
+            if video:
+                inputs += ["-i", str(video)]
+                filters.append(f"[{i}:v]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,fps=30,setsar=1,"
+                               f"setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={duration},trim=duration={duration},"
+                               f"setpts=PTS-STARTPTS[v{i}]")
+            elif image:
+                inputs += ["-loop", "1", "-framerate", "30", "-t", str(duration), "-i", str(image)]
+                filters.append(f"[{i}:v]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,fps=30,setsar=1,"
+                               f"trim=duration={duration},setpts=PTS-STARTPTS[v{i}]")
+            else:
+                raise ValueError(f"No hay medio importado para {scene_id}.")
         audio_index = len(scenes)
         inputs += ["-i", str(asset / "audio" / "narration.wav")]
-        filters = [f"[{i}:v]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,fps=30,setsar=1[v{i}]"
-                   for i in range(len(scenes))]
         filters.append("".join(f"[v{i}]" for i in range(len(scenes))) + f"concat=n={len(scenes)}:v=1:a=0[v]")
         duration = sum(int(scene["duration_target"]) for scene in scenes)
         command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *inputs,
@@ -325,6 +368,17 @@ class ProductionPipeline:
             candidates = self.bank.jobs_by_state(state, 100)
             if state == "RETRY_PENDING":
                 candidates = [job for job in candidates if not job.get("next_retry_at") or job["next_retry_at"] <= now()]
+            elif state == "WAITING_MANUAL_ACTION" and isinstance(self.media, ManualMediaProvider):
+                ready = []
+                for candidate in candidates:
+                    try:
+                        package = self._load_package(candidate["job_id"])
+                        inbox = self._asset(candidate["job_id"]) / "inbox"
+                        if self.media.is_importable(package["scenes.json"], inbox):
+                            ready.append(candidate)
+                    except (OSError, ValueError, KeyError):
+                        continue
+                candidates = ready
             jobs.extend(candidates)
             if len(jobs) >= limit: break
         jobs.sort(key=lambda row: row["seq"])

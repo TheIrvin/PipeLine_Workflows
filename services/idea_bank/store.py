@@ -212,7 +212,7 @@ class IdeaBank:
             "FAILED": set(),
             "RETRY_PENDING": {"MEDIA_QUEUED", "MEDIA_READY", "TTS_READY", "ASSEMBLING", "SUBTITLING", "METADATA_READY", "QA_PENDING", "WAITING_PROVIDER", "WAITING_MANUAL_ACTION"},
             "WAITING_PROVIDER": {"RETRY_PENDING", "MEDIA_QUEUED"},
-            "WAITING_MANUAL_ACTION": {"RETRY_PENDING", "SUBTITLING"},
+            "WAITING_MANUAL_ACTION": {"RETRY_PENDING", "MEDIA_READY", "SUBTITLING"},
         }
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")

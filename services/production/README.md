@@ -1,7 +1,5 @@
-# Worker local de producción
+# Worker de producción
 
-La API procesa un trabajo cada vez en memoria y conserva el checkpoint en SQLite. Provider media es mock; TTS usa espeak-ng con el diccionario de pronunciación editable en pronunciation_dictionary.json. Puedes escoger TTS_VOICE y TTS_SPEED desde variables de entorno.
+La API procesa trabajos por checkpoints y conserva el estado en SQLite. `MEDIA_PROVIDER=manual-inbox` es el valor predeterminado: las escenas y sus prompts se preparan localmente; cuando el usuario deja todos los clips/imágenes requeridos en `data/assets/CONTENT-ID/inbox/`, el worker los valida y sigue con TTS, ensamblado, subtítulos, metadata y QA. Se puede usar `MEDIA_PROVIDER=mock` para generar PPM de demostración.
 
-El audio usa texto de voz del guion; los subtítulos salen del texto visible aprobado y no del resultado de ASR. FFmpeg valida el master y genera el export vertical H.264/AAC.
-
-La API queda publicada solo en loopback mediante Compose. /healthz informa disponibilidad; /api/production/process procesa jobs pendientes; /api/jobs/CONTENT-ID/resume reanuda una tarea; /api/jobs/CONTENT-ID/publish-dry-run genera una simulación. El último endpoint nunca publica en redes.
+Los medios de video admitidos son MP4, MOV, WebM y MKV; las imágenes admitidas son PNG, JPG, JPEG, WebP y PPM. Los clips se normalizan a vertical 9:16 y se ajustan a la duración de escena.
