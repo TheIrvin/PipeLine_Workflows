@@ -174,6 +174,9 @@ class ProductionPipeline:
                                 "missing": handoff["missing"]}
                     manifest = self.media.import_assets(content_id, package["scenes.json"], inbox, asset)
                     if manifest["status"] != "MEDIA_READY":
+                        if self._state(content_id) != "WAITING_MANUAL_ACTION":
+                            self.bank.set_job_state(content_id, "WAITING_MANUAL_ACTION")
+                            self._log(content_id, "media", "waiting", f"El archivo entregado requiere revisión: {inbox}")
                         return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
                                 "inbox": str(inbox), "prompts": str(prompt_copy),
                                 "missing": manifest.get("missing", []), "errors": manifest.get("errors", [])}
@@ -249,6 +252,32 @@ class ProductionPipeline:
             except Exception:
                 pass
             output.replace(output.with_name(output.name + f".corrupt-{int(time.time())}"))
+        full_video = asset / "videos" / "full_video.mp4"
+        audio = asset / "audio" / "narration.wav"
+        if full_video.is_file():
+            audio_probe = self._ffprobe(audio)
+            target_duration = float(audio_probe["format"]["duration"])
+            duration_arg = f"{target_duration:.3f}"
+            video_filter = (
+                "[0:v]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,fps=30,setsar=1,"
+                "setpts=PTS-STARTPTS,"
+                "zoompan=z='1+0.025*mod(on,180)/180':x='iw/2-(iw/zoom/2)+5*sin(on/240)':"
+                "y='ih/2-(ih/zoom/2)+5*cos(on/300)':d=1:s=540x960:fps=30,"
+                f"tpad=stop_mode=clone:stop_duration={duration_arg},trim=duration={duration_arg},"
+                "setpts=PTS-STARTPTS[v]"
+            )
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(full_video), "-i", str(audio),
+                       "-filter_complex", video_filter, "-map", "[v]", "-map", "1:a:0", "-af", "apad", "-t", duration_arg,
+                       "-c:v", "libx264", "-preset", "ultrafast", "-crf", "25", "-pix_fmt", "yuv420p",
+                       "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(output)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=900)
+            if result.returncode:
+                raise RuntimeError(result.stderr[-2500:] or "FFmpeg no pudo ajustar el video completo a la narración.")
+            probe = self._ffprobe(output)
+            video = next((row for row in probe["streams"] if row.get("codec_type") == "video"), None)
+            if not video or int(video["width"]) != 540 or int(video["height"]) != 960:
+                raise ValueError("El master no quedó en formato vertical 9:16.")
+            return
         scenes = package["scenes.json"]["scenes"]
         inputs = []
         filters = []

@@ -50,6 +50,11 @@ class ManualMediaProvider:
 
     def readiness(self, scenes: dict, inbox: Path) -> dict:
         inbox.mkdir(parents=True, exist_ok=True)
+        for name in ("video_completo.mp4", "full_video.mp4"):
+            whole_video = inbox / name
+            if whole_video.is_file() and whole_video.stat().st_size > 1024:
+                return {"complete": True, "input_mode": "full_video", "present": [
+                    {"scene_id": "FULL_VIDEO", "path": str(whole_video)}], "missing": []}
         present, missing = [], []
         for scene in scenes["scenes"]:
             source = self._candidate(inbox, scene["scene_id"])
@@ -58,7 +63,7 @@ class ManualMediaProvider:
                     f"{scene['scene_id']}{ext}" for ext in self.video_extensions[:3] + self.image_extensions[:4]]})
             else:
                 present.append({"scene_id": scene["scene_id"], "path": str(source)})
-        return {"complete": not missing, "present": present, "missing": missing}
+        return {"complete": not missing, "input_mode": "scene_assets", "present": present, "missing": missing}
 
     def validate_file(self, source: Path) -> None:
         if not source.is_file() or source.stat().st_size <= 1024:
@@ -86,6 +91,28 @@ class ManualMediaProvider:
         status = self.readiness(scenes, inbox)
         if not status["complete"]:
             return {"content_id": content_id, "provider": self.provider_name, "status": "WAITING_MANUAL_ACTION", **status}
+        if status.get("input_mode") == "full_video":
+            source = Path(status["present"][0]["path"])
+            try:
+                self.validate_file(source)
+                target_dir = asset_root / "videos"
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target = target_dir / "full_video.mp4"
+                temporary = target.with_name(target.name + ".tmp")
+                shutil.copy2(source, temporary)
+                os.replace(temporary, target)
+                result = {"content_id": content_id, "provider": self.provider_name, "status": "MEDIA_READY",
+                          "input_mode": "full_video", "assets": [{"scene_id": "FULL_VIDEO", "path": str(target),
+                          "source": str(source), "type": "video", "provider": self.provider_name, "status": "READY"}],
+                          "missing": [], "errors": []}
+                manifest_dir = asset_root / "metadata"
+                manifest_dir.mkdir(parents=True, exist_ok=True)
+                (manifest_dir / "media_manifest.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                return result
+            except Exception as exc:
+                return {"content_id": content_id, "provider": self.provider_name, "status": "WAITING_MANUAL_ACTION",
+                        "input_mode": "full_video", "assets": [], "missing": [],
+                        "errors": [{"file": source.name, "error": str(exc)}]}
         assets, errors = [], []
         for scene in scenes["scenes"]:
             source = self._candidate(inbox, scene["scene_id"])

@@ -76,7 +76,14 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
         per_scene.append({"scene_id": scene["scene_id"], "clip_target_seconds": min(8, int(scene["duration_target"])),
                           "narration_context": context, "image_prompt": image_prompt,
                           "video_prompt": video_prompt, "suggested_filename": f"{scene['scene_id']}.mp4"})
-    prompts = {"content_id": job["job_id"], "continuity": continuity, "manual_scene_prompts": per_scene, "groups": [
+    full_video_prompt = (f"Create one complete vertical 9:16 video illustrating this narrated short about {title}. "
+                         f"Keep a coherent visual progression through these beats, in order: {'; '.join(descriptions)}. "
+                         f"Narration context: {script_text}. {continuity['style']} {continuity['colors']} "
+                         f"{continuity['environment']} Keep the same original character and visual continuity. "
+                         "Use clear visual changes between beats, restrained camera motion, and no text, subtitles, "
+                         "logos, watermark, dialogue, or music. Fit the supplied narration's full duration.")
+    prompts = {"content_id": job["job_id"], "continuity": continuity, "full_video_prompt": full_video_prompt,
+               "manual_scene_prompts": per_scene, "groups": [
         {"prompt_id": "PROMPT_A", "scene_ids": [scene_rows[0]["scene_id"], scene_rows[1]["scene_id"]],
          "prompt": f"{continuity['style']} {continuity['environment']} {descriptions[0]}. Transición visual a: {descriptions[1]}. Vertical 9:16. {continuity['continuity']}"},
         {"prompt_id": "PROMPT_B", "scene_ids": [scene_rows[2]["scene_id"]],
@@ -127,9 +134,11 @@ def save_package(package: dict[str, dict[str, Any]], output_root: str | Path, co
                 os.unlink(temporary)
     prompts = package.get("media_prompts.json", {})
     handoff = [f"# Entrega manual de medios — {content_id}", "",
-               "Genera un clip por escena usando la imagen de referencia (image-to-video). Si no puedes animar una escena, puedes entregar una imagen fija con el nombre indicado y extensión .png, .jpg, .jpeg, .webp o .ppm.", "",
-               "## Carpeta de entrega", "", f"`data/assets/{content_id}/inbox/`", "",
-               "Usa el nombre exacto de cada escena. El worker detecta los archivos automáticamente; no comprimas ni renombres después de copiar.", "",
+               "Opción recomendada: entrega un solo MP4 completo. Alternativa: usa los prompts de imagen y animación por escena y entrega un archivo por escena.", "",
+               "## Carpeta de entrega", "", f"`Downloads/Pipeline_Workflows/ManualMedia/{content_id}/inbox/`", "",
+               "Para un video completo usa el nombre exacto `video_completo.mp4`. Para clips separados, usa los nombres indicados en cada escena. El worker detecta los archivos automáticamente.", "",
+               "## Opción: un video completo", "", prompts.get("full_video_prompt", ""), "",
+               "Puedes entregar ese video como `video_completo.mp4`. Si prefieres generar clips separados, usa los prompts de cada escena de abajo.", "",
                "## Prompts por escena", ""]
     for item in prompts.get("manual_scene_prompts", []):
         handoff.extend([f"### {item['scene_id']} ({item['clip_target_seconds']} s objetivo)", "",
