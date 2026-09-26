@@ -73,11 +73,17 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
                         "One clear focal action, readable silhouette, cinematic depth, leave safe space near top and bottom. "
                         "Original character and scene; no text, subtitles, logos, watermark, collage, or UI. "
                         f"Match visual continuity: {continuity['continuity']}")
-        video_prompt = (f"Animate this exact reference image. {descriptions[index]}. "
-                        "Preserve the same character design, clothing, props, background, palette, and lighting. "
-                        "Use one restrained cinematic camera move and subtle natural motion that supports the narration; "
-                        "keep the subject recognizable and the composition vertical 9:16. No cuts, new characters, "
-                        "new objects, text, subtitles, logos, watermark, dialogue, or music.")
+        animation_moves = [
+            "Haz un acercamiento lento hacia el sujeto principal y anima suavemente solo los detalles que ya sean visibles, como la postura, la ropa, la luz o las partículas.",
+            "Desplaza la cámara lateralmente con suavidad alrededor del sujeto. Mueve únicamente elementos que ya aparezcan en la imagen, sin alterar su forma ni su posición principal.",
+            "Haz un leve retroceso de cámara con una inclinación sutil. Da movimiento discreto solo a los elementos visibles existentes, manteniendo intacta la escena.",
+            "Haz un acercamiento lento y termina con la cámara estable. Si la imagen ya contiene luz o partículas, anímalas de forma tenue; conserva inmóviles los demás elementos.",
+        ]
+        video_prompt = ("Anima únicamente la imagen de referencia proporcionada. "
+                        "Conserva exactamente los personajes, sus rostros, identidad, diseño, ropa y pose, además de los objetos, el fondo, los colores, la iluminación y el estilo visual. "
+                        f"{animation_moves[index]} "
+                        "Mantén una sola toma continua, el sujeto reconocible y el encuadre vertical 9:16. "
+                        "No agregues, elimines ni transformes personajes u objetos. No cambies de escena ni añadas texto, subtítulos, logos, marcas de agua, diálogo o música.")
         image_name = f"imagen_{index+1:02d}.png"
         clip_name = f"clip_{index+1:02d}.mp4"
         per_scene.append({"scene_id": scene["scene_id"], "order": index+1,
