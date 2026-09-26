@@ -54,25 +54,34 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
                   for i, desc in enumerate(descriptions)]
     scenes = {"content_id": job["job_id"], "duration_target": target, "scenes": scene_rows}
     continuity = {
-        "character": "Silueta original inspirada en manga de acción; sin copiar fotogramas ni diseños protegidos.",
+        "character": "Usa la referencia adjunta para mantener reconocibles la identidad y los rasgos del personaje; crea una pose y una escena nuevas.",
         "colors": "Violeta oscuro, dorado tenue y acentos magenta, constantes en todas las escenas.",
         "environment": "Espacio urbano nocturno estilizado con partículas y contraste dramático.",
-        "camera": "Composición vertical, plano medio y contrapicado suave; cambios de encuadre entre escenas.",
-        "style": "Ilustración anime original, alto contraste, líneas dinámicas y acabado cinematográfico.",
+        "camera": "Encuadre vertical 9:16; variar la escala y el ángulo entre escenas sin perder continuidad.",
+        "style": "Ilustración anime cinematográfica, alto contraste y líneas dinámicas.",
         "aspect_ratio": "9:16",
-        "continuity": "Mantener la misma silueta, paleta, ambiente y dirección de luz en todas las escenas.",
+        "continuity": "Mantener la identidad del personaje, la paleta, el ambiente y la dirección de luz en todas las escenas.",
     }
+    shot_directions = [
+        "Plano medio cercano que destaque al personaje y la acción principal.",
+        "Plano más abierto que sitúe al personaje en el entorno y muestre la consecuencia de la acción.",
+        "Plano medio desde un ángulo distinto, centrado en el conflicto o límite de la escena.",
+        "Composición final clara e icónica, con el personaje como foco y espacio visual alrededor.",
+    ]
     per_scene = []
     for index, scene in enumerate(scene_rows):
         start = round(index * len(visible_beats) / len(scene_rows))
         end = round((index + 1) * len(visible_beats) / len(scene_rows))
         context = " ".join(visible_beats[start:end]) or descriptions[index]
-        image_prompt = (f"{continuity['style']}. {continuity['environment']}. {descriptions[index]}. "
-                        f"Narration beat to illustrate: {context}. {continuity['character']} "
-                        f"{continuity['colors']} {continuity['camera']} Vertical portrait 9:16. "
-                        "One clear focal action, readable silhouette, cinematic depth, leave safe space near top and bottom. "
-                        "Original character and scene; no text, subtitles, logos, watermark, collage, or UI. "
-                        f"Match visual continuity: {continuity['continuity']}")
+        image_prompt = ("Usa la imagen de referencia adjunta para conservar la identidad y los rasgos reconocibles del personaje principal. "
+                        "Crea una pose, una acción y una composición nuevas; no copies el fondo ni el encuadre de la referencia. "
+                        f"{continuity['style']} {continuity['environment']} "
+                        f"Idea visual de esta escena: {context} "
+                        "Tradúcela a una sola acción visual clara; no escribas ni dibujes el texto narrado. "
+                        f"{shot_directions[index]} {continuity['colors']} "
+                        "Formato vertical 9:16, silueta legible, profundidad cinematográfica y espacio libre cerca del borde superior e inferior. "
+                        "No añadas texto, subtítulos, logos, marcas de agua, collage ni elementos de interfaz. "
+                        f"Mantén la continuidad visual con las demás imágenes: {continuity['continuity']}")
         animation_moves = [
             "Haz un acercamiento lento hacia el sujeto principal y anima suavemente solo los detalles que ya sean visibles, como la postura, la ropa, la luz o las partículas.",
             "Desplaza la cámara lateralmente con suavidad alrededor del sujeto. Mueve únicamente elementos que ya aparezcan en la imagen, sin alterar su forma ni su posición principal.",
