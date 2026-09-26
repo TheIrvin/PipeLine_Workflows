@@ -73,21 +73,18 @@ def build_package(job: dict[str, Any], idea: dict[str, Any], narration: dict[str
                         "One clear focal action, readable silhouette, cinematic depth, leave safe space near top and bottom. "
                         "Original character and scene; no text, subtitles, logos, watermark, collage, or UI. "
                         f"Match visual continuity: {continuity['continuity']}")
-        video_prompt = (f"Animate this exact reference image for about 8 seconds. {descriptions[index]}. "
+        video_prompt = (f"Animate this exact reference image. {descriptions[index]}. "
                         "Preserve the same character design, clothing, props, background, palette, and lighting. "
                         "Use one restrained cinematic camera move and subtle natural motion that supports the narration; "
                         "keep the subject recognizable and the composition vertical 9:16. No cuts, new characters, "
                         "new objects, text, subtitles, logos, watermark, dialogue, or music.")
-        per_scene.append({"scene_id": scene["scene_id"], "clip_target_seconds": min(8, int(scene["duration_target"])),
+        image_name = f"imagen_{index+1:02d}.png"
+        clip_name = f"clip_{index+1:02d}.mp4"
+        per_scene.append({"scene_id": scene["scene_id"], "order": index+1,
                           "narration_context": context, "image_prompt": image_prompt,
-                          "video_prompt": video_prompt, "suggested_filename": f"{scene['scene_id']}.mp4"})
-    full_video_prompt = (f"Create one complete vertical 9:16 video illustrating this narrated short about {title}. "
-                         f"Keep a coherent visual progression through these beats, in order: {'; '.join(descriptions)}. "
-                         f"Narration context: {script_text}. {continuity['style']} {continuity['colors']} "
-                         f"{continuity['environment']} Keep the same original character and visual continuity. "
-                         "Use clear visual changes between beats, restrained camera motion, and no text, subtitles, "
-                         "logos, watermark, dialogue, or music. Fit the supplied narration's full duration.")
-    prompts = {"content_id": job["job_id"], "continuity": continuity, "full_video_prompt": full_video_prompt,
+                          "video_prompt": video_prompt, "image_filename": image_name,
+                          "video_filename": clip_name})
+    prompts = {"content_id": job["job_id"], "continuity": continuity,
                "manual_scene_prompts": per_scene, "groups": [
         {"prompt_id": "PROMPT_A", "scene_ids": [scene_rows[0]["scene_id"], scene_rows[1]["scene_id"]],
          "prompt": f"{continuity['style']} {continuity['environment']} {descriptions[0]}. Transición visual a: {descriptions[1]}. Vertical 9:16. {continuity['continuity']}"},
@@ -138,20 +135,16 @@ def save_package(package: dict[str, dict[str, Any]], output_root: str | Path, co
             if os.path.exists(temporary):
                 os.unlink(temporary)
     prompts = package.get("media_prompts.json", {})
-    handoff = [f"# Entrega manual de medios — {content_id}", "",
-               "Opción recomendada: entrega un solo MP4 completo. Alternativa: usa los prompts de imagen y animación por escena y entrega un archivo por escena.", "",
-               "## Carpeta de entrega", "", f"`Downloads/Pipeline_Workflows/ManualMedia/{content_id}/inbox/`", "",
-               "Para un video completo usa el nombre exacto `video_completo.mp4`. Para clips separados, usa los nombres indicados en cada escena. El worker detecta los archivos automáticamente.", "",
-               "## Opción: un video completo", "", prompts.get("full_video_prompt", ""), "",
-               "Puedes entregar ese video como `video_completo.mp4`. Si prefieres generar clips separados, usa los prompts de cada escena de abajo.", "",
-               "## Prompts por escena", ""]
+    handoff = [f"# Prompts de medios — {content_id}", "",
+               f"Carpeta de trabajo: `Downloads/Pipeline_Workflows/ManualMedia/{content_id}/`", "",
+               "Usa `imagenes/prompt_XX.txt` para crear cada referencia y guarda el resultado como `imagenes/imagen_XX.png`.",
+               "Luego usa `animar_imagenes/prompt_XX.txt` con esa imagen de referencia y guarda el clip como `animar_imagenes/clip_XX.mp4`.",
+               "Une los clips en el orden indicado y guarda el video final como `video_completo.mp4` en la carpeta principal del trabajo.", ""]
     for item in prompts.get("manual_scene_prompts", []):
-        handoff.extend([f"### {item['scene_id']} ({item['clip_target_seconds']} s objetivo)", "",
-                        f"Contexto narrado: {item['narration_context']}", "",
-                        "**Prompt de imagen de referencia**", "", item["image_prompt"], "",
-                        "**Prompt para animar esa imagen**", "", item["video_prompt"], "",
-                        f"**Archivo de video:** `{item['suggested_filename']}`", "",
-                        f"**Archivo de imagen alternativo:** `{item['scene_id']}.png`", ""])
+        handoff.extend([f"## Prompt {item['order']:02d} — {item['narration_context']}", "",
+                        f"Imagen: `imagenes/{item['image_filename']}` | Clip: `animar_imagenes/{item['video_filename']}`", "",
+                        "**Prompt de imagen**", "", item["image_prompt"], "",
+                        "**Prompt de animación**", "", item["video_prompt"], ""])
     (target / "media_prompts.md").write_text("\n".join(handoff), encoding="utf-8")
     return target
 

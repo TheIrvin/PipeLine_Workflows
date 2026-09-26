@@ -50,8 +50,8 @@ class ManualMediaProvider:
 
     def readiness(self, scenes: dict, inbox: Path) -> dict:
         inbox.mkdir(parents=True, exist_ok=True)
-        for name in ("video_completo.mp4", "full_video.mp4"):
-            whole_video = inbox / name
+        for whole_video in (inbox / "video_completo.mp4", inbox / "full_video.mp4",
+                            inbox / "inbox" / "video_completo.mp4", inbox / "inbox" / "full_video.mp4"):
             if whole_video.is_file() and whole_video.stat().st_size > 1024:
                 return {"complete": True, "input_mode": "full_video", "present": [
                     {"scene_id": "FULL_VIDEO", "path": str(whole_video)}], "missing": []}

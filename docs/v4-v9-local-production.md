@@ -12,8 +12,7 @@
 ## Archivos
 
 data/jobs/CONTENT-ID/: plan, guion, escenas y prompts.
-data/assets/CONTENT-ID/inbox/: medios entregados manualmente, con un archivo por escena.
-data/assets/CONTENT-ID/videos/ y images/: medios validados e importados. Los clips tienen prioridad; una imagen fija es alternativa.
+data/assets/CONTENT-ID/videos/ y images/: medios validados e importados desde la carpeta de Descargas.
 data/assets/CONTENT-ID/audio/: WAV de narración.
 data/assets/CONTENT-ID/masters/: master sin subtítulos, master final y reporte QA.
 data/assets/CONTENT-ID/subtitles/: subtítulos SRT.
@@ -22,15 +21,13 @@ data/assets/CONTENT-ID/metadata/: metadata de plataformas y dry-runs.
 Los originales válidos no se borran ni sobrescriben durante una reanudación. Los checkpoints se guardan en SQLite y los eventos en data/logs/pipeline.jsonl.
 
 
-## Entrega manual de medios
+## Entrega manual de prompts y video unido
 
-Al aprobar una idea, se crea en Descargas `Pipeline_Workflows/ManualMedia/CONTENT-ID/`. Allí quedan `media_prompts.md` y la carpeta `inbox/`. El Markdown tiene un prompt para un video completo y, como alternativa, un prompt de imagen y otro de animación para cada escena.
+Al aprobar una idea, se crea `C:\Users\irvin\Downloads\Pipeline_Workflows\ManualMedia\CONTENT-ID\` con dos subcarpetas: `imagenes` y `animar_imagenes`. En cada una encontrarás prompts numerados que se corresponden: `imagenes/prompt_01.txt` crea `imagen_01.png`; `animar_imagenes/prompt_01.txt` anima esa imagen y sugiere guardar `clip_01.mp4`. Repite por cada número. Los prompts no fijan una duración.
 
-La opción recomendada es copiar un único video a `Downloads/Pipeline_Workflows/ManualMedia/CONTENT-ID/inbox/video_completo.mp4`. También se acepta el alias `full_video.mp4`. Si prefieres entregar escenas separadas, usa los nombres exactos del Markdown; puede ser un MP4 por escena o una imagen PNG/JPG/JPEG/WebP para una escena sin animación. Se admiten videos MP4, MOV, WebM y MKV.
+Genera las imágenes y clips manualmente, une los clips en tu editor y guarda el único MP4 unido como `video_completo.mp4` directamente en la carpeta `CONTENT-ID`, junto a `LEEME.txt`. No lo pongas dentro de una tercera carpeta. El worker valida ese MP4 y continúa con la voz local, el montaje vertical, subtítulos, metadata y QA. El video se ajusta al largo real de la narración sintetizada; el texto de subtítulos se conserva y sus tiempos se detectan desde el audio.
 
-El video completo se recorta a vertical 9:16, recibe un zoom/paneo leve y se ajusta a la duración real de la narración sintetizada: se recorta si sobra video o se congela el último fotograma si falta. No se asignan duraciones fijas de 12 segundos por escena. Por ejemplo, si el primer bloque narrado dura 8 segundos y el siguiente 4, el video continuo sigue bajo la voz de 8+4 segundos, y los subtítulos se sincronizan contra el audio. Para que los cambios visuales coincidan con cambios concretos del guion, el video completo debe traer esos momentos en ese orden; el worker no puede inferir por sí solo el significado de cada fotograma.
-
-Desde Windows, la carpeta queda en `C:\Users\irvin\Downloads\Pipeline_Workflows\ManualMedia\CONTENT-ID\inbox`; los prompts están al lado, en `media_prompts.md`. La ruta se configura con `MEDIA_INBOX_HOST_PATH` en `.env`. El video validado se copia al proyecto en `data/assets/CONTENT-ID/videos/`; el original de Descargas se conserva. Si el workflow de producción de n8n está activo, revisa la bandeja cada minuto y reanuda el trabajo; también puedes llamar `POST /api/jobs/CONTENT-ID/resume`.
+La carpeta de Descargas se monta en Docker mediante `MEDIA_INBOX_HOST_PATH`; los medios importados se guardan en `data/assets/CONTENT-ID/videos/`. Los originales de Descargas se conservan. Si el workflow de producción de n8n está activo, revisa el archivo cada minuto. También puedes llamar `POST /api/jobs/CONTENT-ID/resume`.
 
 ## Subtitulador local integrado
 

@@ -88,6 +88,42 @@ class ProductionPipeline:
         if result.returncode: raise ValueError(f"Archivo corrupto o no reproducible: {path.name}")
         return json.loads(result.stdout)
 
+    def _prepare_manual_handoff(self, content_id: str, package: dict) -> Path:
+        job_dir = self.manual_media_root / content_id
+        images_dir = job_dir / "imagenes"
+        animate_dir = job_dir / "animar_imagenes"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        animate_dir.mkdir(parents=True, exist_ok=True)
+        prompts = package["media_prompts.json"].get("manual_scene_prompts", [])
+        for item in prompts:
+            number = int(item["order"])
+            image_name = item.get("image_filename") or f"imagen_{number:02d}.png"
+            video_name = item.get("video_filename") or f"clip_{number:02d}.mp4"
+            image_file = (f"Guardar la imagen generada como: {image_name}\n\n"
+                          f"PROMPT PARA CREAR LA IMAGEN\n\n{item['image_prompt']}\n")
+            video_file = (f"Imagen de referencia: ../imagenes/{image_name}\n"
+                          f"Guardar el clip generado como: {video_name}\n\n"
+                          f"PROMPT PARA ANIMAR LA IMAGEN\n\n{item['video_prompt']}\n")
+            (images_dir / f"prompt_{number:02d}.txt").write_text(image_file, encoding="utf-8")
+            (animate_dir / f"prompt_{number:02d}.txt").write_text(video_file, encoding="utf-8")
+        instructions = [f"ENTREGA MANUAL — {content_id}", "",
+            "1. Abre imagenes/prompt_01.txt y crea la imagen. Guárdala como imagen_01.png dentro de imagenes.",
+            "2. Abre animar_imagenes/prompt_01.txt, carga imagenes/imagen_01.png como referencia y guarda el resultado como clip_01.mp4 dentro de animar_imagenes.",
+            "3. Repite con los prompts numerados restantes.",
+            "4. Une los clips en el orden numérico usando tu editor de video.",
+            "5. Guarda el MP4 unido como video_completo.mp4 directamente en esta carpeta.",
+            "6. El pipeline continuará con la narración local, subtítulos y QA.", "",
+            "La carpeta contiene exactamente dos subcarpetas: imagenes y animar_imagenes."]
+        (job_dir / "LEEME.txt").write_text("\n".join(instructions) + "\n", encoding="utf-8")
+        # Remove the former empty inbox when upgrading an existing handoff.
+        legacy_inbox = job_dir / "inbox"
+        if legacy_inbox.is_dir() and not any(legacy_inbox.iterdir()):
+            legacy_inbox.rmdir()
+        markdown = job_dir / "media_prompts.md"
+        if markdown.exists():
+            markdown.write_text("\n".join(instructions) + "\n", encoding="utf-8")
+        return job_dir
+
     def rebuild_narration(self, content_id: str) -> dict[str, Any]:
         """Regenerate a READY job's script, voice and video while preserving a revision backup."""
         with self._processing_lock:
@@ -155,13 +191,8 @@ class ProductionPipeline:
             (asset / folder).mkdir(parents=True, exist_ok=True)
         package = self._load_package(content_id)
         try:
-            manual_job_dir = self.manual_media_root / content_id
-            inbox = manual_job_dir / "inbox"
-            inbox.mkdir(parents=True, exist_ok=True)
-            prompt_source = self.jobs_root / content_id / "media_prompts.md"
-            prompt_copy = manual_job_dir / "media_prompts.md"
-            if prompt_source.is_file() and (not prompt_copy.exists() or prompt_source.stat().st_mtime > prompt_copy.stat().st_mtime):
-                shutil.copy2(prompt_source, prompt_copy)
+            manual_job_dir = self._prepare_manual_handoff(content_id, package) if isinstance(self.media, ManualMediaProvider) else self.manual_media_root / content_id
+            inbox = manual_job_dir
             if state == "MEDIA_QUEUED":
                 if isinstance(self.media, ManualMediaProvider):
                     handoff = self.media.readiness(package["scenes.json"], inbox)
@@ -170,7 +201,7 @@ class ProductionPipeline:
                             self.bank.set_job_state(content_id, "WAITING_MANUAL_ACTION")
                             self._log(content_id, "media", "waiting", f"Entrega manual pendiente: {inbox}")
                         return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
-                                "inbox": str(inbox), "prompts": str(prompt_copy),
+                                "media_folder": str(manual_job_dir), "prompts": str(manual_job_dir),
                                 "missing": handoff["missing"]}
                     manifest = self.media.import_assets(content_id, package["scenes.json"], inbox, asset)
                     if manifest["status"] != "MEDIA_READY":
@@ -178,7 +209,7 @@ class ProductionPipeline:
                             self.bank.set_job_state(content_id, "WAITING_MANUAL_ACTION")
                             self._log(content_id, "media", "waiting", f"El archivo entregado requiere revisión: {inbox}")
                         return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
-                                "inbox": str(inbox), "prompts": str(prompt_copy),
+                                "media_folder": str(manual_job_dir), "prompts": str(manual_job_dir),
                                 "missing": manifest.get("missing", []), "errors": manifest.get("errors", [])}
                     self.bank.set_job_state(content_id, "MEDIA_READY")
                     self._log(content_id, "media", "ok", f"{len(manifest['assets'])} medios manuales validados e importados.")
@@ -408,7 +439,7 @@ class ProductionPipeline:
                 for candidate in candidates:
                     try:
                         package = self._load_package(candidate["job_id"])
-                        inbox = self.manual_media_root / candidate["job_id"] / "inbox"
+                        inbox = self.manual_media_root / candidate["job_id"]
                         if self.media.is_importable(package["scenes.json"], inbox):
                             ready.append(candidate)
                     except (OSError, ValueError, KeyError):
