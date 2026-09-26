@@ -24,6 +24,7 @@ class ProductionPipeline:
         self.data_root = Path(data_root)
         self.jobs_root = self.data_root / "jobs"
         self.assets_root = self.data_root / "assets"
+        self.manual_media_root = Path(os.environ.get("MANUAL_MEDIA_ROOT", str(self.assets_root)))
         self.logs_root = self.data_root / "logs"
         media_provider = os.environ.get("MEDIA_PROVIDER", "manual-inbox").strip().lower()
         if media_provider == "manual-inbox":
@@ -154,8 +155,13 @@ class ProductionPipeline:
             (asset / folder).mkdir(parents=True, exist_ok=True)
         package = self._load_package(content_id)
         try:
-            inbox = asset / "inbox"
+            manual_job_dir = self.manual_media_root / content_id
+            inbox = manual_job_dir / "inbox"
             inbox.mkdir(parents=True, exist_ok=True)
+            prompt_source = self.jobs_root / content_id / "media_prompts.md"
+            prompt_copy = manual_job_dir / "media_prompts.md"
+            if prompt_source.is_file() and (not prompt_copy.exists() or prompt_source.stat().st_mtime > prompt_copy.stat().st_mtime):
+                shutil.copy2(prompt_source, prompt_copy)
             if state == "MEDIA_QUEUED":
                 if isinstance(self.media, ManualMediaProvider):
                     handoff = self.media.readiness(package["scenes.json"], inbox)
@@ -164,12 +170,12 @@ class ProductionPipeline:
                             self.bank.set_job_state(content_id, "WAITING_MANUAL_ACTION")
                             self._log(content_id, "media", "waiting", f"Entrega manual pendiente: {inbox}")
                         return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
-                                "inbox": str(inbox), "prompts": str(self.jobs_root / content_id / "media_prompts.md"),
+                                "inbox": str(inbox), "prompts": str(prompt_copy),
                                 "missing": handoff["missing"]}
                     manifest = self.media.import_assets(content_id, package["scenes.json"], inbox, asset)
                     if manifest["status"] != "MEDIA_READY":
                         return {"job_id": content_id, "state": "WAITING_MANUAL_ACTION", "assets": str(asset),
-                                "inbox": str(inbox), "prompts": str(self.jobs_root / content_id / "media_prompts.md"),
+                                "inbox": str(inbox), "prompts": str(prompt_copy),
                                 "missing": manifest.get("missing", []), "errors": manifest.get("errors", [])}
                     self.bank.set_job_state(content_id, "MEDIA_READY")
                     self._log(content_id, "media", "ok", f"{len(manifest['assets'])} medios manuales validados e importados.")
@@ -373,7 +379,7 @@ class ProductionPipeline:
                 for candidate in candidates:
                     try:
                         package = self._load_package(candidate["job_id"])
-                        inbox = self._asset(candidate["job_id"]) / "inbox"
+                        inbox = self.manual_media_root / candidate["job_id"] / "inbox"
                         if self.media.is_importable(package["scenes.json"], inbox):
                             ready.append(candidate)
                     except (OSError, ValueError, KeyError):

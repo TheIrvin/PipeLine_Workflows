@@ -112,6 +112,7 @@ services:
       PIPELINE_DATA_PATH: /app/data
       PIPELINE_API_PORT: "8091"
       MEDIA_PROVIDER: ${MEDIA_PROVIDER:-manual-inbox}
+      MANUAL_MEDIA_ROOT: /app/manual-media
       CONTENT_BUFFER_MIN: ${CONTENT_BUFFER_MIN:-7}
       CONTENT_BUFFER_TARGET: ${CONTENT_BUFFER_TARGET:-14}
       TTS_PROVIDER: ${TTS_PROVIDER:-qwen3-tts-local}
@@ -128,6 +129,7 @@ services:
       SUBTITLE_EXPORT_DIR: /app/data/subtitle-worker/exports
     volumes:
       - ./data:/app/data
+      - ${MEDIA_INBOX_HOST_PATH:-./data/assets}:/app/manual-media
     ports:
       - "127.0.0.1:8091:8091"
     healthcheck:
