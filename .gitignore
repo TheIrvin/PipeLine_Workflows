@@ -12,3 +12,9 @@ __pycache__/
 *.py[cod]
 *.sqlite
 *.sqlite3
+
+# Local media intake and final exports; retain only the empty folder markers.
+/videos/subir/*
+!/videos/subir/.gitkeep
+/videos/terminado/*
+!/videos/terminado/.gitkeep

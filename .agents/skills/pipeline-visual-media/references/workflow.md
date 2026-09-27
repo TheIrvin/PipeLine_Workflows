@@ -43,10 +43,8 @@ Use a slow push-in for a clear focal subject, a subtle horizontal slide for an e
 
 ## Assemble and hand off to the local pipeline
 
-After the user accepts the clips, they combine the clips in numeric order in their editor and save one joined file as `video_completo.mp4` directly in:
+After the user accepts the clips, they may either combine them in numeric order and save `video_completo.mp4` at the root of `videos/subir/CONTENT-ID/`, or leave numbered `clip_XX.mp4` files in `videos/subir/CONTENT-ID/animar_imagenes/` for the worker to assemble. The worker retains all inputs under `subir` for retries. After successful QA, it copies the final subtitled video to `videos/terminado/CONTENT-ID.mp4`; it also retains the working master under `data/assets/CONTENT-ID/masters/`.
 
-`C:\Users\irvin\Downloads\Pipeline_Workflows\ManualMedia\CONTENT-ID\`
-
-The working job folder has the two media subfolders `imagenes` and `animar_imagenes`. The joined MP4 belongs in the job-folder root, alongside `LEEME.txt`; it does not go in either subfolder. Once it is present, the local pipeline continues with the approved Spanish narration, voice, subtitle timing, metadata, and QA. Do not ask for a single video from a generator when the intended workflow is separately generated clips joined by the user.
+`videos/subir` and `videos/terminado` are created at startup and are excluded from Git except for empty directory markers. Set `MEDIA_INBOX_HOST_PATH` in `.env` to move them to another host folder. Never put a user-specific absolute path in shared docs or prompt files.
 
 A READY job and its final video are historical output. Update generator templates for future jobs; do not replace its prompts or media unless the user asks to reopen that job.

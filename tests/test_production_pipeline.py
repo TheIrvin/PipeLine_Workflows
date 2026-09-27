@@ -31,6 +31,9 @@ class ProductionPipelineTests(unittest.TestCase):
         self.assertTrue(idea["titulo_final"])
         self.assertTrue(idea["fecha_listo"])
         assets = self.root / "assets" / self.content_id
+        finished_video = self.root / "videos" / "terminado" / f"{self.content_id}.mp4"
+        self.assertEqual(Path(result["finished_video"]), finished_video)
+        self.assertTrue(finished_video.is_file())
         for relative in ("images/media_manifest.json", "audio/narration.wav",
                          "masters/master_sin_subtitulos.mp4", "masters/master_final.mp4",
                          "subtitles/captions.es.srt", "metadata/tiktok.json", "metadata/facebook.json",

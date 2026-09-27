@@ -158,7 +158,7 @@ def save_package(package: dict[str, dict[str, Any]], output_root: str | Path, co
                 os.unlink(temporary)
     prompts = package.get("media_prompts.json", {})
     handoff = [f"# Prompts de medios — {content_id}", "",
-               f"Carpeta de trabajo: `Downloads/Pipeline_Workflows/ManualMedia/{content_id}/`", "",
+               f"Carpeta de trabajo: `videos/subir/{content_id}/`", "",
                "Usa `imagenes/prompt_XX.txt` para crear cada referencia y guarda el resultado como `imagenes/imagen_XX.png`.",
                "Luego usa `animar_imagenes/prompt_XX.txt` con esa imagen de referencia y guarda el clip como `animar_imagenes/clip_XX.mp4`.",
                "Los prompts usan instrucciones en inglés; adjunta el archivo real de referencia al generar cada imagen y usa la imagen correspondiente como entrada al animarla.",

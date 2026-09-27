@@ -41,9 +41,13 @@ class ManualMediaProvider:
     def __init__(self, ffprobe: str = "ffprobe"):
         self.ffprobe = ffprobe
 
-    def _candidate(self, inbox: Path, scene_id: str) -> Path | None:
-        for ext in self.video_extensions + self.image_extensions:
-            path = inbox / f"{scene_id}{ext}"
+    def _candidate(self, inbox: Path, scene_id: str, scene_order: int | None = None) -> Path | None:
+        candidates = [inbox / f"{scene_id}{ext}" for ext in self.video_extensions + self.image_extensions]
+        if scene_order is not None:
+            clip_name = f"clip_{scene_order:02d}"
+            candidates.extend(inbox / folder / f"{clip_name}{ext}"
+                              for folder in ("animar_imagenes", "") for ext in self.video_extensions)
+        for path in candidates:
             if path.is_file() and path.stat().st_size > 1024:
                 return path
         return None
@@ -56,11 +60,13 @@ class ManualMediaProvider:
                 return {"complete": True, "input_mode": "full_video", "present": [
                     {"scene_id": "FULL_VIDEO", "path": str(whole_video)}], "missing": []}
         present, missing = [], []
-        for scene in scenes["scenes"]:
-            source = self._candidate(inbox, scene["scene_id"])
+        for index, scene in enumerate(scenes["scenes"], start=1):
+            order = int(scene.get("order") or index)
+            source = self._candidate(inbox, scene["scene_id"], order)
             if source is None:
-                missing.append({"scene_id": scene["scene_id"], "expected": [
-                    f"{scene['scene_id']}{ext}" for ext in self.video_extensions[:3] + self.image_extensions[:4]]})
+                expected = [f"{scene['scene_id']}{ext}" for ext in self.video_extensions[:3] + self.image_extensions[:4]]
+                expected.extend([f"animar_imagenes/clip_{order:02d}.mp4", f"clip_{order:02d}.mp4"])
+                missing.append({"scene_id": scene["scene_id"], "expected": expected})
             else:
                 present.append({"scene_id": scene["scene_id"], "path": str(source)})
         return {"complete": not missing, "input_mode": "scene_assets", "present": present, "missing": missing}
@@ -114,8 +120,8 @@ class ManualMediaProvider:
                         "input_mode": "full_video", "assets": [], "missing": [],
                         "errors": [{"file": source.name, "error": str(exc)}]}
         assets, errors = [], []
-        for scene in scenes["scenes"]:
-            source = self._candidate(inbox, scene["scene_id"])
+        for index, scene in enumerate(scenes["scenes"], start=1):
+            source = self._candidate(inbox, scene["scene_id"], int(scene.get("order") or index))
             try:
                 if source is None:
                     raise ValueError("El archivo de escena desapareció de la bandeja de entrada.")

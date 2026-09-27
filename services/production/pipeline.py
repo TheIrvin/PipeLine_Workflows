@@ -24,7 +24,11 @@ class ProductionPipeline:
         self.data_root = Path(data_root)
         self.jobs_root = self.data_root / "jobs"
         self.assets_root = self.data_root / "assets"
-        self.manual_media_root = Path(os.environ.get("MANUAL_MEDIA_ROOT", str(self.assets_root)))
+        self.manual_media_root = Path(os.environ.get("MANUAL_MEDIA_ROOT", str(self.data_root / "videos")))
+        self.manual_upload_root = self.manual_media_root / "subir"
+        self.manual_finished_root = self.manual_media_root / "terminado"
+        self.manual_upload_root.mkdir(parents=True, exist_ok=True)
+        self.manual_finished_root.mkdir(parents=True, exist_ok=True)
         self.logs_root = self.data_root / "logs"
         media_provider = os.environ.get("MEDIA_PROVIDER", "manual-inbox").strip().lower()
         if media_provider == "manual-inbox":
@@ -51,7 +55,7 @@ class ProductionPipeline:
             raise ValueError(f"Proveedor TTS no reconocido: {tts_provider}")
         subtitle_url = os.environ.get("SUBTITLE_WORKER_URL", "").strip()
         if subtitle_url:
-            export_dir = os.environ.get("SUBTITLE_EXPORT_DIR") or r"\\wsl.localhost\Ubuntu\home\irvin\PipeLine_Workflows\data\temp\subtitle-export"
+            export_dir = os.environ.get("SUBTITLE_EXPORT_DIR") or str(self.data_root / "subtitle-worker" / "exports")
             self.subtitles = ExistingSubtitleBackendAdapter(subtitle_url, export_dir)
         else:
             self.subtitles = LocalSubtitleWorker()
@@ -60,6 +64,22 @@ class ProductionPipeline:
 
     def _asset(self, content_id: str) -> Path:
         return self.assets_root / content_id
+    def _manual_upload_dir(self, content_id: str) -> Path:
+        return self.manual_upload_root / content_id
+    def _export_finished_video(self, content_id: str, asset: Path) -> Path:
+        source = asset / "masters" / "master_final.mp4"
+        if not source.is_file():
+            raise FileNotFoundError(f"No se encontró el video final para exportar: {source}")
+        self.manual_finished_root.mkdir(parents=True, exist_ok=True)
+        target = self.manual_finished_root / f"{content_id}.mp4"
+        temporary = target.with_name(target.name + ".tmp")
+        try:
+            shutil.copy2(source, temporary)
+            os.replace(temporary, target)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+        return target
     def _state(self, content_id: str) -> str:
         context = self.bank.get_job_context(content_id)
         if context is None: raise KeyError(f"No existe el trabajo {content_id}")
@@ -89,7 +109,7 @@ class ProductionPipeline:
         return json.loads(result.stdout)
 
     def _prepare_manual_handoff(self, content_id: str, package: dict) -> Path:
-        job_dir = self.manual_media_root / content_id
+        job_dir = self._manual_upload_dir(content_id)
         images_dir = job_dir / "imagenes"
         animate_dir = job_dir / "animar_imagenes"
         images_dir.mkdir(parents=True, exist_ok=True)
@@ -110,10 +130,10 @@ class ProductionPipeline:
             "1. Abre imagenes/prompt_01.txt y crea la imagen. Guárdala como imagen_01.png dentro de imagenes.",
             "2. Abre animar_imagenes/prompt_01.txt, carga imagenes/imagen_01.png como referencia y guarda el resultado como clip_01.mp4 dentro de animar_imagenes.",
             "3. Repite con los prompts numerados restantes.",
-            "4. Une los clips en el orden numérico usando tu editor de video.",
-            "5. Guarda el MP4 unido como video_completo.mp4 directamente en esta carpeta.",
-            "6. El pipeline continuará con la narración local, subtítulos y QA.", "",
-            "La carpeta contiene exactamente dos subcarpetas: imagenes y animar_imagenes."]
+            "4. Puedes dejar los clips numerados clip_01.mp4, clip_02.mp4, etc. en animar_imagenes, o unirlos tú en tu editor.",
+            "5. Si los unes manualmente, guarda el resultado como video_completo.mp4 directamente en esta carpeta.",
+            "6. Cuando estén listos todos los clips o el video_completo.mp4, el pipeline añadirá voz y subtítulos; tras aprobar QA, copiará el resultado a videos/terminado/CONTENT-ID.mp4.", "",
+            "La carpeta de este trabajo contiene imagenes y animar_imagenes; la carpeta videos tiene subir y terminado."]
         (job_dir / "LEEME.txt").write_text("\n".join(instructions) + "\n", encoding="utf-8")
         # Remove the former empty inbox when upgrading an existing handoff.
         legacy_inbox = job_dir / "inbox"
@@ -191,7 +211,7 @@ class ProductionPipeline:
             (asset / folder).mkdir(parents=True, exist_ok=True)
         package = self._load_package(content_id)
         try:
-            manual_job_dir = self._prepare_manual_handoff(content_id, package) if isinstance(self.media, ManualMediaProvider) else self.manual_media_root / content_id
+            manual_job_dir = self._prepare_manual_handoff(content_id, package) if isinstance(self.media, ManualMediaProvider) else self._manual_upload_dir(content_id)
             inbox = manual_job_dir
             if state == "MEDIA_QUEUED":
                 if isinstance(self.media, ManualMediaProvider):
@@ -259,11 +279,13 @@ class ProductionPipeline:
                 report = self._quality_gate(content_id, asset)
                 self._atomic_json(asset / "metadata" / "qa_report.json", report)
                 if not report["passed"]: raise ValueError("QA rechazó el contenido: " + "; ".join(report["errors"]))
+                finished_video = self._export_finished_video(content_id, asset)
                 self.bank.set_job_state(content_id, "READY")
                 self.bank.mark_idea_ready_for_job(content_id, package["plan.json"]["concept"])
                 self._update_buffer(content_id, asset, package)
-                self._log(content_id, "qa", "ok", "QA aprobado; contenido agregado al buffer local.")
-                return {"job_id": content_id, "state": "READY", "assets": str(asset), "qa": report}
+                self._log(content_id, "qa", "ok", f"QA aprobado; resultado final copiado a {finished_video}.")
+                return {"job_id": content_id, "state": "READY", "assets": str(asset),
+                        "finished_video": str(finished_video), "qa": report}
             return {"job_id": content_id, "state": self._state(content_id), "assets": str(asset)}
         except Exception as exc:
             self.bank.record_job_event(content_id, "pipeline", "error", str(exc), "PIPELINE_STAGE_FAILED")
@@ -439,7 +461,7 @@ class ProductionPipeline:
                 for candidate in candidates:
                     try:
                         package = self._load_package(candidate["job_id"])
-                        inbox = self.manual_media_root / candidate["job_id"]
+                        inbox = self._manual_upload_dir(candidate["job_id"])
                         if self.media.is_importable(package["scenes.json"], inbox):
                             ready.append(candidate)
                     except (OSError, ValueError, KeyError):

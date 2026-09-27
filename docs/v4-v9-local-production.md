@@ -12,7 +12,7 @@
 ## Archivos
 
 data/jobs/CONTENT-ID/: plan, guion, escenas y prompts.
-data/assets/CONTENT-ID/videos/ y images/: medios validados e importados desde la carpeta de Descargas.
+data/assets/CONTENT-ID/videos/ y images/: copias de medios validados e importados desde `videos/subir/CONTENT-ID/`.
 data/assets/CONTENT-ID/audio/: WAV de narración.
 data/assets/CONTENT-ID/masters/: master sin subtítulos, master final y reporte QA.
 data/assets/CONTENT-ID/subtitles/: subtítulos SRT.
@@ -23,12 +23,19 @@ Los originales válidos no se borran ni sobrescriben durante una reanudación. L
 
 ## Entrega manual de prompts y video unido
 
-Al aprobar una idea, se crea `C:\Users\irvin\Downloads\Pipeline_Workflows\ManualMedia\CONTENT-ID\` con dos subcarpetas: `imagenes` y `animar_imagenes`. En cada una encontrarás prompts numerados que se corresponden: `imagenes/prompt_01.txt` crea `imagen_01.png`; `animar_imagenes/prompt_01.txt` anima esa imagen y sugiere guardar `clip_01.mp4`. Repite por cada número. Los prompts no fijan una duración.
-Las instrucciones de imagen y animación usan inglés como formato interoperable (especialmente para Veo); el beat de la narración permanece en español como contexto visual. Adjunta el archivo real de referencia de personaje en cada generación de imagen y conserva sus colores originales; usa cada imagen resultante como referencia de su clip correspondiente. Consulta `.agents/skills/pipeline-visual-media/` para variaciones y resolución de errores.
+Al aprobar una idea, el worker crea `videos/subir/CONTENT-ID/` dentro del repositorio, con las carpetas `imagenes` y `animar_imagenes`. Los prompts y archivos de trabajo quedan separados por contenido. Puedes entregar los medios de cualquiera de estas formas:
 
-Genera las imágenes y clips manualmente, une los clips en tu editor y guarda el único MP4 unido como `video_completo.mp4` directamente en la carpeta `CONTENT-ID`, junto a `LEEME.txt`. No lo pongas dentro de una tercera carpeta. El worker valida ese MP4 y continúa con la voz local, el montaje vertical, subtítulos, metadata y QA. El video se ajusta al largo real de la narración sintetizada; el texto de subtítulos se conserva y sus tiempos se detectan desde el audio.
+- Un MP4 editado/unido por ti, llamado `video_completo.mp4` directamente en `videos/subir/CONTENT-ID/`.
+- Clips separados `clip_01.mp4`, `clip_02.mp4`, etc., dentro de `videos/subir/CONTENT-ID/animar_imagenes/` (también se aceptan en la raíz del trabajo).
+- Medios con el nombre del ID de escena, si ya tienes una integración que los genera así.
 
-La carpeta de Descargas se monta en Docker mediante `MEDIA_INBOX_HOST_PATH`; los medios importados se guardan en `data/assets/CONTENT-ID/videos/`. Los originales de Descargas se conservan. Si el workflow de producción de n8n está activo, revisa el archivo cada minuto. También puedes llamar `POST /api/jobs/CONTENT-ID/resume`.
+Con clips separados, el worker respeta el orden y aplica a cada escena el tiempo objetivo del plan. Para elegir manualmente la duración y el ritmo de cada corte, une los clips en un editor y entrega `video_completo.mp4`.
+
+El worker valida y copia los originales a `data/assets/CONTENT-ID/`, añade narración y subtítulos locales, ajusta el montaje vertical y ejecuta QA. No borra los archivos de `subir`, para permitir reintentos. Después de aprobar QA, copia el MP4 final con audio y subtítulos a `videos/terminado/CONTENT-ID.mp4`; el master de trabajo también permanece en `data/assets/CONTENT-ID/masters/`.
+
+Para ver la carpeta en Windows desde Ubuntu/WSL, ejecuta `explorer.exe "$(wslpath -w "$PWD/videos")"` desde la raíz del repositorio. Si prefieres guardarla fuera del repo, configura `MEDIA_INBOX_HOST_PATH` en `.env` con una ruta absoluta de tu equipo; el contenido de medios no se sube a Git.
+
+Los prompts no fijan duración. Genera cada imagen con su referencia de personaje real y usa la imagen numerada correspondiente para generar su clip. La guía completa está en `.agents/skills/pipeline-visual-media/`. Si el workflow de producción de n8n está activo, revisa las entregas periódicamente; también puedes llamar `POST /api/jobs/CONTENT-ID/resume`.
 
 ## Subtitulador local integrado
 
