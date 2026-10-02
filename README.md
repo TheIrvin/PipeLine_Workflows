@@ -10,8 +10,8 @@ Base local del pipeline descrito en los prompts. n8n y el banco de ideas corren 
 
 ## Rutas
 
-- WSL: `/home/irvin/PipeLine_Workflows`
-- Windows: `\\wsl.localhost\Ubuntu\home\irvin\PipeLine_Workflows`
+- WSL: `~/PipeLine_Workflows`
+- Windows: `\\wsl.localhost\Ubuntu\home\<usuario>\PipeLine_Workflows` (reemplaza `<usuario>` por tu usuario de Ubuntu)
 
 Mantén el proyecto en el filesystem de Ubuntu (no en `/mnt/c`) para evitar problemas de rendimiento y permisos en los volúmenes.
 
