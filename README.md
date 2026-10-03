@@ -77,3 +77,7 @@ El backup detiene servicios brevemente y guarda persistencia de n8n y el banco l
 ## Planificador local V3
 
 El planificador produce `plan.json`, `script.json`, `scenes.json` y `media_prompts.json` sin usar cuentas ni servicios externos. Consulta [docs/v3-local-planner.md](docs/v3-local-planner.md).
+
+## Licencia
+
+Este proyecto está bajo la licencia MIT. Consulta [LICENSE](LICENSE).
